@@ -1,6 +1,7 @@
-<center>
-<img width="100" src="https://avatars.githubusercontent.com/u/100565733?s=200" alt="Lsky Pro Logo"/>
-</center>
+<p align="center">
+<img src="https://avatars.githubusercontent.com/u/100565733?s=200&v=4" width="150"/>
+</p>
+
 <h1 align="center">WordPress LskyPro</h1>
 
 <p align="center">
@@ -17,7 +18,7 @@
 
 ### 项目介绍
 
-此项目为通过LskyPro API，将Wordpress的媒体库的图片上传到LskyPro程序
+此项目为通过LskyPro API，将Wordpress的媒体库的图片上传到LskyPro插件
 
 ### 文档地址
 
@@ -52,6 +53,6 @@ https://github.com/znc15/wordpress-lskypro/releases
 ### 反馈
 - [Telegram](https://t.me/Count_API)
 
-### :scroll: License
+### License
 
 - Apache-2.0
