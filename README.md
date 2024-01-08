@@ -1,6 +1,7 @@
-<center>
-<img width="100" src="https://avatars.githubusercontent.com/u/100565733?s=200" alt="Lsky Pro Logo"/>
-</center>
+<p align="center">
+<img src="https://avatars.githubusercontent.com/u/100565733?s=200&v=4" width="150"/>
+</p>
+
 <h1 align="center">WordPress LskyPro</h1>
 
 <p align="center">
