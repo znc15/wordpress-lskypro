@@ -18,7 +18,7 @@
 
 ### 项目介绍
 
-此项目为通过LskyPro API，将Wordpress的媒体库的图片上传到LskyPro程序
+此项目为通过LskyPro API，将Wordpress的媒体库的图片上传到LskyPro插件
 
 ### 文档地址
 
@@ -53,6 +53,6 @@ https://github.com/znc15/wordpress-lskypro/releases
 ### 反馈
 - [Telegram](https://t.me/Count_API)
 
-### :scroll: License
+### License
 
 - Apache-2.0
