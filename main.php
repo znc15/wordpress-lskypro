@@ -3,7 +3,7 @@
 Plugin Name: Lsky Pro 图床自动上传插件
 Plugin URI:  https://github.com/znc15/wordpress-lskypro
 Description: 基于Lsky Pro API开发的将媒体库文件自动上传到图床的插件
-Version:     0.0.5
+Version:     0.0.6
 Author:      LittleSheep
 Author URI:  https://www.littlesheep.cc/
 License:     Apache-2
@@ -210,7 +210,6 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
  */
-
 function image_upload_plugin_menu()
 {
     add_menu_page('图床设置', '图床设置', 'manage_options', 'image_upload_plugin_settings', 'image_upload_plugin_settings_page', 'dashicons-format-image', );
@@ -230,6 +229,7 @@ function image_upload_plugin_settings_page()
         </form>
     </div>
     <?php
+
     $image_host_url = get_option('image_host_url');
     $authorization_token = get_option('authorization_token');
 
@@ -260,7 +260,16 @@ function image_upload_plugin_settings_page()
 
         // 新增换算函数
         function convert_kb_to_mb($kb_value) {
-            return round($kb_value / 1024, 2); // 将KB换算为MB并保留两位小数
+            return round($kb_value / 1024, 2);
+        }
+        // 添加获取HTTP内容的函数
+        function curl_get_contents($url, $headers) {
+            $ch = curl_init($url);
+            curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            $response = curl_exec($ch);
+            curl_close($ch);
+            return $response;
         }
         // 输出用户信息
         if ($json_response && isset($json_response['status']) && $json_response['status'] === true) {
@@ -268,15 +277,37 @@ function image_upload_plugin_settings_page()
             echo '<div class="wrap">';
             echo '<h2>用户信息</h2>';
             echo '<ul>';
-            echo '<li>用户名：' . $user_info['username'] . '</li>';
-            echo '<li>姓名：' . $user_info['name'] . '</li>';
-            echo '<li>Email：' . $user_info['email'] . '</li>';
+            echo '<li>用户名：' . $user_info['name'] . '</li>';
+            echo '<li>邮箱：' . $user_info['email'] . '</li>';
             echo '<li>容量：' . convert_kb_to_mb($user_info['capacity']) . 'MB</li>';
-            echo '<li>已使用：' . convert_kb_to_mb($user_info['size']) . 'MB</li>';
             echo '<li>图片数量：' . $user_info['image_num'] . '</li>';
             echo '<li>相册数量：' . $user_info['album_num'] . '</li>';
             echo '</ul>';
             echo '</div>';
+            // 获取储存区信息
+            $strategies_api_url = $image_host_url . 'api/v1/strategies';
+            $strategies_response = curl_get_contents($strategies_api_url, $headers);
+
+            // 解析JSON响应
+            $strategies_json = json_decode($strategies_response, true);
+
+            // 输出储存区信息
+            if ($strategies_json && isset($strategies_json['status']) && $strategies_json['status'] === true) {
+                $strategies_data = $strategies_json['data']['strategies'];
+                echo '<div class="wrap">';
+                echo '<h2>储存策略信息</h2>';
+                echo '<ul>';
+                foreach ($strategies_data as $strategy) {
+                    echo '<li>储存策略名字：' . $strategy['name'] . '</li>';
+                    echo '<li>策略ID：' . $strategy['id'] . '</li>';
+                }
+                echo '</ul>';
+                echo '</div>';
+            } else {
+                // 输出获取储存区信息失败的消息
+                echo '<h2>储存策略信息</h2>';
+                echo '<p>无法获取策略信息，请检查接口是否可用。</p>';
+            }
         } else {
             // 输出API请求失败的消息
             echo '<div class="wrap">';
@@ -297,12 +328,21 @@ function image_upload_plugin_register_settings()
 {
     register_setting('image_upload_plugin_settings_group', 'image_host_url');
     register_setting('image_upload_plugin_settings_group', 'authorization_token');
+    register_setting('image_upload_plugin_settings_group', 'strategy_id', array('type' => 'integer', 'default' => 1));
 
     add_settings_section(
         'image_upload_plugin_settings_section',
         '图床设置',
         'image_upload_plugin_settings_section_callback',
         'image_upload_plugin_settings'
+    );
+
+    add_settings_field(
+        'strategy_id',
+        '策略ID',
+        'strategy_id_callback',
+        'image_upload_plugin_settings',
+        'image_upload_plugin_settings_section'
     );
 
     add_settings_field(
@@ -342,6 +382,12 @@ function authorization_token_callback()
     echo "<p>请填写用户Token，例如：Bearer 4|*****（4|*****为获取的token）</p>";
 }
 
+function strategy_id_callback()
+{
+    $value = get_option('strategy_id', 1); // 默认值为1
+    echo "<input type='text' name='strategy_id' value='$value' />";
+    echo "<p>请填写策略ID，默认为1。</p>";
+}
 // 添加钩子，拦截WordPress获取图片URL的过程
 add_filter('wp_get_attachment_url', 'change_image_url', 10, 2);
 
@@ -359,11 +405,9 @@ function change_image_url($url, $attachment_id)
     // 获取插件启用日期
     $plugin_activation_date = get_option('image_upload_plugin_activation_date');
 
-    // 获取附件的上传时间
     $upload_date = get_the_time('Ymd', $attachment_id);
     $current_date = date('Ymd');
 
-    // 如果附件是在插件启用之后上传的，才进行处理
     if ($upload_date >= $plugin_activation_date) {
         // 获取WordPress上传目录路径
         $upload_dir = wp_upload_dir();
@@ -387,6 +431,7 @@ function change_image_url($url, $attachment_id)
         // 获取设置的图床URL和Authorization Token
         $image_host_url = get_option('image_host_url') . 'api/v1/upload';
         $authorization_token = get_option('authorization_token');
+        $strategy_id = get_option('strategy_id', 1);
 
         // 图床接口需要的请求头
         $headers = array(
@@ -394,9 +439,9 @@ function change_image_url($url, $attachment_id)
             "Authorization: Bearer $authorization_token",
         );
 
-        // 构建POST请求
         $body = array(
             'file' => new CURLFile($cache_file, get_post_mime_type($cache_file), basename($cache_file)),
+            'strategy_id' => $strategy_id,
         );
 
         $ch = curl_init($image_host_url);
@@ -427,7 +472,6 @@ function change_image_url($url, $attachment_id)
             // 更新附件的信息
             update_post_meta($attachment_id, '_wp_attachment_metadata', $attachment_info);
 
-            // 直接使用 $new_url，不包含 $image_host_url
             $url = $new_url;
         }
     }
@@ -435,35 +479,28 @@ function change_image_url($url, $attachment_id)
     return $url;
 }
 
-// 添加钩子，拦截WordPress创建缩略图的过程
 add_filter('wp_generate_attachment_metadata', 'upload_thumbnail_to_image_host', 10, 2);
 
 // 处理创建缩略图
 function upload_thumbnail_to_image_host($metadata, $attachment_id)
 {
-    // 获取插件启用日期
+
     $plugin_activation_date = get_option('image_upload_plugin_activation_date');
 
-    // 获取附件的上传时间
     $upload_date = get_the_time('Ymd', $attachment_id);
 
-    // 如果附件是在插件启用之后上传的，才进行处理
     if ($upload_date >= $plugin_activation_date) {
-        // 获取WordPress上传目录路径
+
         $upload_dir = wp_upload_dir();
         $upload_basedir = $upload_dir['basedir'];
 
-        // 构建缓存目录路径
         $cache_dir = path_join($upload_basedir, 'image_upload_cache');
         wp_mkdir_p($cache_dir);
 
-        // 获取附件的本地文件路径
         $attachment_file = get_attached_file($attachment_id);
 
-        // 构建缓存文件路径
         $cache_file = path_join($cache_dir, basename($attachment_file));
 
-        // 如果缓存文件不存在，将附件复制到缓存目录
         if (!file_exists($cache_file)) {
             copy($attachment_file, $cache_file);
         }
@@ -471,6 +508,7 @@ function upload_thumbnail_to_image_host($metadata, $attachment_id)
         // 获取设置的图床URL和Authorization Token
         $image_host_url = get_option('image_host_url') . 'api/v1/upload';
         $authorization_token = get_option('authorization_token');
+        $strategy_id = get_option('strategy_id', 1);
 
         // 图床接口需要的请求头
         $headers = array(
@@ -478,10 +516,10 @@ function upload_thumbnail_to_image_host($metadata, $attachment_id)
             "Authorization: Bearer $authorization_token",
         );
 
-        // 构建POST请求
         $body = array(
             'file' => new CURLFile($cache_file, get_post_mime_type($cache_file), basename($cache_file)),
-        );
+            'strategy_id' => $strategy_id,
+        );     
 
         $ch = curl_init($image_host_url);
         curl_setopt($ch, CURLOPT_POST, true);
@@ -492,20 +530,15 @@ function upload_thumbnail_to_image_host($metadata, $attachment_id)
         $response = curl_exec($ch);
         curl_close($ch);
 
-        // 解析JSON响应
         $json_response = json_decode($response, true);
 
         if ($json_response && isset($json_response['status']) && $json_response['status'] === true) {
 
-            // 获取图床返回的文件名
             $new_filename = $json_response['data']['name'];
 
-            // 更新附件的文件名
             $metadata['file'] = $new_filename;
 
-            // 删除重复部分
             foreach ($metadata['sizes'] as $size => $size_info) {
-                // 直接使用 $new_url，不包含 $image_host_url
                 $metadata['sizes'][$size]['file'] = $new_filename;
             }
         }
