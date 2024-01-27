@@ -219,15 +219,23 @@ add_action('admin_menu', 'image_upload_plugin_menu');
 
 function image_upload_plugin_settings_page()
 {
+    echo '<style>
+    #wpwrap {
+        background-color: #f1f1f1;
+    }
+    .image-upload-plugin-wrap {
+        padding-top: 25px;
+    }
+    </style>';
+    echo '<div class="image-upload-plugin-wrap">';
+    $plugin_url = plugin_dir_url(__FILE__);
     ?>
-    <div class="wrap">
-        <h2>图片上传插件设置</h2>
         <form method="post" action="options.php">
             <?php settings_fields('image_upload_plugin_settings_group');?>
             <?php do_settings_sections('image_upload_plugin_settings');?>
             <?php submit_button();?>
         </form>
-    </div>
+
     <?php
 
     $image_host_url = get_option('image_host_url');
@@ -269,16 +277,31 @@ function image_upload_plugin_settings_page()
 
         if ($json_response && isset($json_response['status']) && $json_response['status'] === true) {
             $user_info = $json_response['data'];
+            echo '<link rel="stylesheet" href="' . esc_url($plugin_url) . 'assets/css/bootstrap.min.css">';
+            echo '<script src="' . esc_url($plugin_url) . 'assets/js/bootstrap.bundle.min.js"></script>';
             echo '<div class="wrap">';
             echo '<h2>用户信息</h2>';
-            echo '<ul>';
-            echo '<li>用户名：' . $user_info['name'] . '</li>';
-            echo '<li>邮箱：' . $user_info['email'] . '</li>';
-            echo '<li>容量：' . convert_kb_to_mb($user_info['capacity']) . 'MB</li>';
-            echo '<li>图片数量：' . $user_info['image_num'] . '</li>';
-            echo '<li>相册数量：' . $user_info['album_num'] . '</li>';
-            echo '</ul>';
+            echo '<p>——用户详情</p>';
+            echo '<div class="card">';
+            echo '<div class="card-body">';
+            echo '<table class="table">';
+            echo '<tr><th>用户名</th><td>' . esc_html($user_info['name']) . '</td></tr>';
+            echo '<tr><th>邮箱</th><td>' . esc_html($user_info['email']) . '</td></tr>';
+            echo '<tr><th>容量</th><td>' . esc_html(convert_kb_to_mb($user_info['capacity'])) . ' MB</td></tr>';
+            echo '<tr><th>图片数量</th><td>' . esc_html($user_info['image_num']) . '</td></tr>';
+            echo '<tr><th>相册数量</th><td>' . esc_html($user_info['album_num']) . '</td></tr>';
+            echo '</table>';
             echo '</div>';
+            echo '</div>';
+            echo '</div>';
+        } else {
+            echo '<div class="wrap">';
+            echo '<h1>图片上传插件设置</h1>';
+            echo '<div class="alert alert-danger" role="alert">';
+            echo '无法获取用户信息，请检查图床URL和用户Token是否正确。';
+            echo '</div>';
+            echo '</div>';
+        }
             $strategies_api_url = $image_host_url . 'api/v1/strategies';
             $strategies_response = curl_get_contents($strategies_api_url, $headers);
 
@@ -288,28 +311,30 @@ function image_upload_plugin_settings_page()
                 $strategies_data = $strategies_json['data']['strategies'];
                 echo '<div class="wrap">';
                 echo '<h2>储存策略信息</h2>';
-                echo '<ul>';
+                echo '<p>——可用的储存策略</p>';
+                echo '<div class="card">';
+                echo '<div class="card-body">';
+                echo '<ul class="list-group list-group-flush">';
                 foreach ($strategies_data as $strategy) {
-                    echo '<li>储存策略名字：' . $strategy['name'] . '</li>';
-                    echo '<li>策略ID：' . $strategy['id'] . '</li>';
+                    echo '<li class="list-group-item">储存策略名字：' . esc_html($strategy['name']) . '</li>';
+                    echo '<li class="list-group-item">策略ID：' . esc_html($strategy['id']) . '</li>';
                 }
                 echo '</ul>';
                 echo '</div>';
+                echo '</div>';
+                echo '</div>';
             } else {
+                echo '<div class="wrap">';
                 echo '<h2>储存策略信息</h2>';
-                echo '<p>无法获取策略信息，请检查接口是否可用。</p>';
+                echo '<div class="alert alert-warning" role="alert">';
+                echo '无法获取策略信息，请检查接口是否可用。';
+                echo '</div>';
+                echo '</div>';
+                echo '</div>';
             }
-        } else {
-            echo '<div class="wrap">';
-            echo '<h1>图片上传插件设置</h1>';
-            echo '<p>保存更改成功！</p>';
-            echo '<p>无法获取用户信息，请检查图床URL和用户Token是否正确。</p>';
-            echo '</div>';
         }
         
     }
-
-}
 
 add_action('admin_init', 'image_upload_plugin_register_settings');
 function image_upload_plugin_register_settings()
