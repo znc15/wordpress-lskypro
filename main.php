@@ -3,7 +3,7 @@
 Plugin Name: Lsky Pro 图床自动上传插件
 Plugin URI:  https://github.com/znc15/wordpress-lskypro
 Description: 基于Lsky Pro API开发的将媒体库文件自动上传到图床的插件
-Version:     0.0.9
+Version:     0.1.0
 Author:      LittleSheep
 Author URI:  https://www.littlesheep.cc/
 License:     Apache-2
