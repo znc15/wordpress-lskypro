@@ -212,7 +212,14 @@ limitations under the License.
  */
 function image_upload_plugin_menu()
 {
-    add_menu_page('图床设置', '图床设置', 'manage_options', 'image_upload_plugin_settings', 'image_upload_plugin_settings_page', 'dashicons-format-image', );
+    add_menu_page(
+        '图床设置',          // 页面标题
+        '图床设置',          // 菜单标题
+        'manage_options',     // 权限
+        'image_upload_plugin_settings', // 菜单slug
+        'image_upload_plugin_settings_page', // 回调函数
+        'dashicons-format-image'  // 图标
+    );
 }
 
 add_action('admin_menu', 'image_upload_plugin_menu');
