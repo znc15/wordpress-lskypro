@@ -101,13 +101,13 @@ LskyPro For WordPress 是一个专为 WordPress 设计的图床插件，可以�
 
 ## 🆘 技术支持
 
-如有任何问题或建议，请访问 [GitHub 仓库](https://github.com/znc15/wordpress-lskypro) 提交 Issue。 💬
+如有任何问题或建议，请访问 [GitHub 仓库](https://github.com/znc15/wordpress-lskypro/issues) 提交 Issue。 💬
 
 ## ©️ 版权信息
 
 - 作者：LittleSheep 
 - 作者网站：[https://www.littlesheep.cc](https://www.littlesheep.cc) 
 - 插件版本：1.0.0 
-- 许可证：GPL v2 或更高版本 
+- 许可证：Apache License 2.0
 
-感谢您使用 LskyPro For WordPress 插件！😊 祝您使用愉快！👍
+感谢您使用 LskyPro For WordPress 插件！Ciallo～(∠・ω< )⌒★
