@@ -18,6 +18,10 @@
   </a>
 </p>
 
+<p align="center">
+  <img src="https://raw.githubusercontent.com/znc15/wordpress-lskypro/main/png/first.png" width="80%"/>
+</p>
+
 ## 📷 插件介绍
 
 LskyPro For WordPress 是一个专为 WordPress 设计的图床插件，可以自动将 WordPress 上传的图片同步到 LskyPro 图床。通过使用此插件，您可以有效减轻服务器存储压力，提高图片加载速度，并且更好地管理您的媒体资源。 ✨
