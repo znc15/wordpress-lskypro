@@ -1,0 +1,97 @@
+#wpbody-content {
+    padding-bottom: 0px !important;
+}
+
+.lsky-pro-setup-wrap {
+    max-width: 800px;
+    margin: 20px auto;
+}
+
+.lsky-pro-card {
+    background: #fff;
+    border: 1px solid #ccd0d4;
+    border-radius: 4px;
+    padding: 25px;
+    margin-top: 20px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+
+.lsky-pro-title {
+    color: #23282d;
+    font-size: 1.7em;
+    margin: 0 0 1em;
+    padding: 0;
+    font-weight: 600;
+}
+
+.lsky-pro-account-type {
+    margin-bottom: 25px;
+    padding: 15px;
+    background: #f8f9fa;
+    border-radius: 4px;
+}
+
+.lsky-pro-radio-group {
+    display: flex;
+    gap: 20px;
+}
+
+.lsky-pro-radio-label {
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+    padding: 8px 16px;
+    border-radius: 4px;
+    transition: background-color 0.2s;
+}
+
+.lsky-pro-radio-label:hover {
+    background-color: #f0f0f1;
+}
+
+.lsky-pro-form-group {
+    margin-bottom: 20px;
+}
+
+.lsky-pro-form-group label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 600;
+    color: #1d2327;
+}
+
+.lsky-pro-input {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid #8c8f94;
+    border-radius: 4px;
+    transition: border-color 0.2s;
+}
+
+.lsky-pro-input:focus {
+    border-color: #2271b1;
+    box-shadow: 0 0 0 1px #2271b1;
+    outline: none;
+}
+
+.lsky-pro-description {
+    margin-top: 6px;
+    color: #646970;
+    font-size: 13px;
+    font-style: italic;
+}
+
+.lsky-pro-submit {
+    margin-top: 25px;
+}
+
+/* 动画效果 */
+.lsky-pro-fields-container {
+    transition: opacity 0.3s, transform 0.3s;
+}
+
+.lsky-pro-fields-container.hidden {
+    opacity: 0;
+    transform: translateY(10px);
+    pointer-events: none;
+}
