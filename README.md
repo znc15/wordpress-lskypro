@@ -19,7 +19,7 @@
 </p>
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/znc15/wordpress-lskypro/main/png/first.png" width="80%"/>
+  <img src="png/first.png" width="80%"/>
 </p>
 
 ## 📷 插件介绍
