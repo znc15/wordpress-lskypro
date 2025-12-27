@@ -1,0 +1,7 @@
+.github/*
+docs/*
+logs/upload.log
+logs/index.php
+logs/error.log
+logs/.htaccess
+install.lock

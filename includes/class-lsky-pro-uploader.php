@@ -158,46 +158,109 @@ class LskyProUploader {
         }
 
         $this->debug_log('准备发送请求到: ' . $upload_url);
-        
-        $curl = curl_init();
-        
-        curl_setopt_array($curl, array(
-            CURLOPT_URL => $upload_url,
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_ENCODING => 'gzip,deflate',
-            CURLOPT_MAXREDIRS => 10,
-            CURLOPT_TIMEOUT => 60,
-            CURLOPT_CONNECTTIMEOUT => 10,
-            CURLOPT_FOLLOWLOCATION => true,
-            CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
-            CURLOPT_CUSTOMREQUEST => 'POST',
-            CURLOPT_POSTFIELDS => $post_data,
-            CURLOPT_HTTPHEADER => array(
-                'Accept: application/json',
-                'User-Agent: WordPress/LskyPro-Uploader'
-            ),
-            CURLOPT_SSL_VERIFYPEER => $this->should_verify_ssl(),
-            CURLOPT_SSL_VERIFYHOST => $this->should_verify_ssl() ? 2 : 0,
-            CURLOPT_VERBOSE => (defined('WP_DEBUG') && WP_DEBUG)
-        ));
-        
-        // 执行请求
-        $response = curl_exec($curl);
-        $err = curl_error($curl);
-        $http_code = (int) curl_getinfo($curl, CURLINFO_HTTP_CODE);
-        
-        curl_close($curl);
+
+        $response = false;
+        $err = '';
+        $curl_errno = 0;
+        $http_code = 0;
+        $curl_info = array();
+
+        // 对于 Recv failure: Connection was reset 等偶发网络错误，做轻量重试。
+        $max_attempts = (int) apply_filters('lsky_pro_upload_curl_attempts', 3);
+        if ($max_attempts < 1) {
+            $max_attempts = 1;
+        }
+
+        for ($attempt = 1; $attempt <= $max_attempts; $attempt++) {
+            $curl = curl_init();
+
+            curl_setopt_array($curl, array(
+                CURLOPT_URL => $upload_url,
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_ENCODING => 'gzip,deflate',
+                CURLOPT_MAXREDIRS => 10,
+                CURLOPT_TIMEOUT => 60,
+                CURLOPT_CONNECTTIMEOUT => 10,
+                CURLOPT_FOLLOWLOCATION => true,
+                CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
+                CURLOPT_CUSTOMREQUEST => 'POST',
+                CURLOPT_POSTFIELDS => $post_data,
+                CURLOPT_HTTPHEADER => array(
+                    'Accept: application/json',
+                    'User-Agent: WordPress/LskyPro-Uploader',
+                    // 禁用 Expect: 100-continue，避免部分环境/网关下连接被提前断开
+                    'Expect:'
+                ),
+                CURLOPT_SSL_VERIFYPEER => $this->should_verify_ssl(),
+                CURLOPT_SSL_VERIFYHOST => $this->should_verify_ssl() ? 2 : 0,
+                CURLOPT_VERBOSE => (defined('WP_DEBUG') && WP_DEBUG),
+            ));
+
+            $response = curl_exec($curl);
+            $curl_errno = (int) curl_errno($curl);
+            $err = (string) curl_error($curl);
+            $http_code = (int) curl_getinfo($curl, CURLINFO_HTTP_CODE);
+            $curl_info = (array) curl_getinfo($curl);
+
+            curl_close($curl);
+
+            // 无 cURL 错误就不需要重试。
+            if ($curl_errno === 0 && $err === '') {
+                break;
+            }
+
+            // 仅对典型瞬断类错误重试。
+            $retryable_errno = array(
+                56, // CURLE_RECV_ERROR: Recv failure: Connection was reset
+                55, // CURLE_SEND_ERROR
+                52, // CURLE_GOT_NOTHING
+                28, // CURLE_OPERATION_TIMEDOUT
+                7,  // CURLE_COULDNT_CONNECT
+                35, // CURLE_SSL_CONNECT_ERROR
+            );
+            $should_retry = in_array($curl_errno, $retryable_errno, true);
+
+            if (!$should_retry || $attempt >= $max_attempts) {
+                break;
+            }
+
+            // 简单退避，避免立刻重连撞上同一条不稳定链路。
+            usleep($attempt === 1 ? 300000 : 800000);
+        }
         
         // 记录请求信息（仅在 debug 模式输出到 PHP error_log）
         $this->debug_log('请求响应状态码: ' . $http_code);
         $this->debug_log('请求响应内容(截断): ' . substr((string)$response, 0, 800));
         
         // 处理错误
-        if ($err) {
-            $this->error = 'CURL错误: ' . $err;
+        if ($curl_errno !== 0 || $err !== '') {
+            $this->error = 'CURL错误: ' . ($err !== '' ? $err : ('errno=' . $curl_errno));
+
+            $info_subset = array(
+                'url' => $curl_info['url'] ?? '',
+                'http_code' => $curl_info['http_code'] ?? $http_code,
+                'content_type' => $curl_info['content_type'] ?? '',
+                'primary_ip' => $curl_info['primary_ip'] ?? '',
+                'primary_port' => $curl_info['primary_port'] ?? '',
+                'local_ip' => $curl_info['local_ip'] ?? '',
+                'local_port' => $curl_info['local_port'] ?? '',
+                'ssl_verify_result' => $curl_info['ssl_verify_result'] ?? null,
+                'http_version' => $curl_info['http_version'] ?? null,
+                'redirect_count' => $curl_info['redirect_count'] ?? null,
+                'total_time' => $curl_info['total_time'] ?? null,
+                'namelookup_time' => $curl_info['namelookup_time'] ?? null,
+                'connect_time' => $curl_info['connect_time'] ?? null,
+                'appconnect_time' => $curl_info['appconnect_time'] ?? null,
+                'starttransfer_time' => $curl_info['starttransfer_time'] ?? null,
+            );
+            $info_json = wp_json_encode($info_subset, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            if (!is_string($info_json)) {
+                $info_json = '';
+            }
+
             $this->logError(
                 $file_path,
-                $this->error . sprintf('；请求：%s', $upload_url)
+                $this->error . sprintf('；errno=%d；请求：%s；curlinfo：%s', $curl_errno, $upload_url, substr($info_json, 0, 800))
             );
             $ctx = $this->formatLastRequestContextForError();
             if ($ctx !== '') {
