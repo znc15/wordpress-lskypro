@@ -5,12 +5,12 @@ if (!defined('ABSPATH')) {
 }
 
 // 加载所有必需的类文件
-require_once LSKY_PRO_PLUGIN_DIR . 'includes/class-lsky-pro-uploader.php';
-require_once LSKY_PRO_PLUGIN_DIR . 'includes/class-lsky-pro-remote.php';
-require_once LSKY_PRO_PLUGIN_DIR . 'includes/class-lsky-pro-upload-handler.php';
-require_once LSKY_PRO_PLUGIN_DIR . 'includes/class-lsky-pro-post-handler.php';
-require_once LSKY_PRO_PLUGIN_DIR . 'includes/class-lsky-pro-batch.php';
-require_once LSKY_PRO_PLUGIN_DIR . 'includes/class-lsky-pro-api.php';
+require_once LSKY_PRO_PLUGIN_DIR . 'includes/uploader.php';
+require_once LSKY_PRO_PLUGIN_DIR . 'includes/remote.php';
+require_once LSKY_PRO_PLUGIN_DIR . 'includes/upload-handler.php';
+require_once LSKY_PRO_PLUGIN_DIR . 'includes/post-handler.php';
+require_once LSKY_PRO_PLUGIN_DIR . 'includes/batch.php';
+require_once LSKY_PRO_PLUGIN_DIR . 'includes/api.php';
 require_once LSKY_PRO_PLUGIN_DIR . 'includes/cron-process-images.php';
 require_once LSKY_PRO_PLUGIN_DIR . 'setup/setup.php';
 require_once LSKY_PRO_PLUGIN_DIR . 'setup/setup-2.php';

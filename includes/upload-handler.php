@@ -123,4 +123,4 @@ class LskyProUploadHandler {
     public function disable_image_editors() {
         return array();
     }
-} 
+}

@@ -29,8 +29,8 @@ class LskyProImageProcessor {
     public function __construct() {
         $this->start_time = time();
         // 确保必要的类文件已加载
-        require_once(LSKY_PRO_PLUGIN_DIR . 'includes/class-lsky-pro-remote.php');
-        require_once(LSKY_PRO_PLUGIN_DIR . 'includes/class-lsky-pro-uploader.php');
+        require_once(LSKY_PRO_PLUGIN_DIR . 'includes/remote.php');
+        require_once(LSKY_PRO_PLUGIN_DIR . 'includes/uploader.php');
         
         $this->remote = new LskyProRemote();
         $this->results = array(

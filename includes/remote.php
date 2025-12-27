@@ -28,7 +28,7 @@ class LskyProRemote {
         error_log("LskyPro: 开始处理文章 {$post_id} 的远程图片");
 
         // 匹配所有图片标签
-        $pattern = '/<img[^>]+src=([\'"])(https?:\/\/[^>]+?)\1[^>]*>/i';
+        $pattern = '/<img[^>]+src=([\'\"])(https?:\/\/[^>]+?)\1[^>]*>/i';
         $site_url = get_site_url();
         $updated = false;
         
@@ -207,4 +207,4 @@ class LskyProRemote {
     public function getError() {
         return $this->error;
     }
-} 
+}

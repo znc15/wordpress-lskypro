@@ -170,7 +170,7 @@ class LskyProBatch {
         foreach ($posts as $post) {
             $this->processed++;
             $content = $post->post_content;
-            $pattern = '/<img[^>]+src=([\'"])((?:http|https):\/\/[^>]+?)\1[^>]*>/i';
+            $pattern = '/<img[^>]+src=([\'\"])((?:http|https):\/\/[^>]+?)\1[^>]*>/i';
             
             if (preg_match_all($pattern, $content, $matches)) {
                 foreach ($matches[2] as $url) {
