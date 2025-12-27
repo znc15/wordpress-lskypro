@@ -57,10 +57,15 @@ class LskyProUploadHandler {
                     echo '</div>';
                 });
             } else {
-                error_log('图床上传失败: ' . $uploader->getError());
+                $error_message = (string) $uploader->getError();
+                if ($error_message === '') {
+                    $error_message = '上传失败: 未知错误';
+                }
+
+                error_log('图床上传失败: ' . $error_message);
                 
                 // 触发上传失败事件
-                do_action('lsky_pro_upload_error', $uploader->getError());
+                do_action('lsky_pro_upload_error', $error_message);
                 
                 // 添加错误通知
                 add_action('admin_notices', function() use ($uploader) {
@@ -68,12 +73,18 @@ class LskyProUploadHandler {
                     echo '<p>图床上传失败：' . esc_html($uploader->getError()) . '</p>';
                     echo '</div>';
                 });
+
+                // 让 WordPress 上传流程感知失败，并在媒体库/编辑器里显示错误。
+                $file_array['error'] = '图床上传失败：' . $error_message;
             }
         } catch (Exception $e) {
             error_log('上传处理异常: ' . $e->getMessage());
             
             // 触发上传异常事件
             do_action('lsky_pro_upload_exception', $e);
+
+            // 同样把异常回传给上传流程，避免“看起来成功但其实失败”。
+            $file_array['error'] = '图床上传异常：' . $e->getMessage();
         }
         
         return $file_array;

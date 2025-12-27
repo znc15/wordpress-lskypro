@@ -283,9 +283,3 @@ class LskyProBatch {
         return $temp_file;
     }
 }
-
-// 初始化批量处理类
-function lsky_pro_init_batch() {
-    new LskyProBatch();
-}
-add_action('init', 'lsky_pro_init_batch'); 
