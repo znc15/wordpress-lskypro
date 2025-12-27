@@ -48,7 +48,7 @@ class LskyProUploader {
         }
 
         $response = wp_remote_get(
-            rtrim($options['lsky_pro_api_url'], '/') . '/profile',
+            rtrim($options['lsky_pro_api_url'], '/') . '/user/profile',
             array(
                 'headers' => array(
                     'Authorization' => 'Bearer ' . $options['lsky_pro_token']
@@ -64,7 +64,12 @@ class LskyProUploader {
         }
 
         $body = json_decode(wp_remote_retrieve_body($response), true);
-        if (!isset($body['status']) || $body['status'] !== true) {
+        if (!is_array($body)) {
+            $this->error = '获取用户信息失败：响应解析失败';
+            return false;
+        }
+
+        if (isset($body['status']) && $body['status'] !== true && $body['status'] !== 'success') {
             $this->error = $body['message'] ?? '获取用户信息失败';
             return false;
         }
@@ -77,6 +82,100 @@ class LskyProUploader {
      */
     public function getError() {
         return $this->error;
+    }
+
+    /**
+     * 获取当前组信息（v2: /group），用于 storages 与上传限制。
+     * 做短缓存避免频繁请求。
+     */
+    public function get_group_info() {
+        $options = get_option('lsky_pro_options');
+        $api_url = $options['lsky_pro_api_url'] ?? '';
+        $token = $options['lsky_pro_token'] ?? '';
+
+        if ($api_url === '' || $token === '') {
+            $this->error = '请先配置 API 地址和 Token';
+            return false;
+        }
+
+        $cache_key = 'lsky_pro_group_' . md5($api_url . '|' . $token);
+        $cached = get_transient($cache_key);
+        if (is_array($cached)) {
+            return $cached;
+        }
+
+        $response = wp_remote_get(
+            rtrim($api_url, '/') . '/group',
+            array(
+                'headers' => array(
+                    'Authorization' => 'Bearer ' . $token,
+                    'Accept' => 'application/json',
+                ),
+                'timeout' => 30,
+                'sslverify' => false,
+            )
+        );
+
+        if (is_wp_error($response)) {
+            $this->error = $response->get_error_message();
+            return false;
+        }
+
+        $data = json_decode(wp_remote_retrieve_body($response), true);
+        if (!is_array($data)) {
+            $this->error = '获取组信息失败：响应解析失败';
+            return false;
+        }
+
+        if (isset($data['status']) && $data['status'] !== true && $data['status'] !== 'success') {
+            $this->error = $data['message'] ?? '获取组信息失败';
+            return false;
+        }
+
+        // 缓存 10 分钟
+        set_transient($cache_key, $data, 10 * MINUTE_IN_SECONDS);
+        return $data;
+    }
+
+    /**
+     * 允许的文件扩展名（来源：/group.data.group.options.allow_file_types）
+     */
+    public function get_allowed_file_types() {
+        $group = $this->get_group_info();
+        if ($group === false) {
+            return array();
+        }
+
+        $types = $group['data']['group']['options']['allow_file_types'] ?? array();
+        if (!is_array($types)) {
+            return array();
+        }
+
+        $normalized = array();
+        foreach ($types as $t) {
+            $t = strtolower(trim((string) $t));
+            if ($t !== '') {
+                $normalized[] = $t;
+            }
+        }
+        return array_values(array_unique($normalized));
+    }
+
+    /**
+     * 最大上传大小（bytes），来源：/group.data.group.options.max_upload_size（文档示例为 KB）。
+     */
+    public function get_max_upload_size_bytes() {
+        $group = $this->get_group_info();
+        if ($group === false) {
+            return 0;
+        }
+
+        $kb = $group['data']['group']['options']['max_upload_size'] ?? 0;
+        $kb = (int) $kb;
+        if ($kb <= 0) {
+            return 0;
+        }
+        return $kb * 1024;
     }
     
     public function upload($file_path) {
@@ -94,6 +193,26 @@ class LskyProUploader {
         } elseif (isset($options['strategy_id'])) {
             $storage_id = intval($options['strategy_id']);
         }
+
+        // 若未设置或设置了无效 id，则尝试从 /group.storages 自动选择一个可用 id。
+        $storages = $this->get_strategies();
+        if (is_array($storages) && !empty($storages)) {
+            $allowed_ids = array();
+            foreach ($storages as $s) {
+                if (is_array($s) && isset($s['id'])) {
+                    $allowed_ids[] = (int) $s['id'];
+                }
+            }
+
+            $allowed_ids = array_values(array_unique(array_filter($allowed_ids)));
+            if (!empty($allowed_ids)) {
+                if ($storage_id <= 0 || !in_array($storage_id, $allowed_ids, true)) {
+                    $storage_id = $allowed_ids[0];
+                }
+            }
+        }
+
+        // 最后兜底
         if ($storage_id <= 0) {
             $storage_id = 1;
         }
@@ -150,8 +269,6 @@ class LskyProUploader {
             'file' => $cfile,
             'storage_id' => $storage_id,
             'is_public' => $is_public ? '1' : '0',
-            // 直接 token（不在错误信息中回显 token 值）
-            'token' => (string) $this->token,
         );
         if ($expired_at !== '') {
             $post_data['expired_at'] = $expired_at;
@@ -188,6 +305,8 @@ class LskyProUploader {
                 CURLOPT_HTTPHEADER => array(
                     'Accept: application/json',
                     'User-Agent: WordPress/LskyPro-Uploader',
+                    // v2 鉴权：使用 Bearer Token（否则服务端可能识别为游客）
+                    'Authorization: Bearer ' . (string) $this->token,
                     // 禁用 Expect: 100-continue，避免部分环境/网关下连接被提前断开
                     'Expect:'
                 ),
@@ -375,31 +494,78 @@ class LskyProUploader {
             return false;
         }
 
-        $response = wp_remote_get(
-            rtrim($options['lsky_pro_api_url'], '/') . '/strategies',
-            array(
-                'headers' => array(
-                    'Authorization' => 'Bearer ' . $options['lsky_pro_token']
-                ),
-                'timeout' => 30,
-                'sslverify' => false
-            )
+        // v2 推荐：通过 /group 获取 storages
+        $group = $this->get_group_info();
+        if ($group !== false) {
+            $storages = $group['data']['storages'] ?? null;
+            if (is_array($storages)) {
+                return $storages;
+            }
+        }
+
+        $base = rtrim($options['lsky_pro_api_url'], '/');
+        $endpoints = array(
+            '/strategies',
+            '/storages',
+            '/storage/strategies',
         );
 
-        if (is_wp_error($response)) {
-            $this->error = $response->get_error_message();
-            return false;
+        $last_error = '';
+
+        foreach ($endpoints as $endpoint) {
+            $response = wp_remote_get(
+                $base . $endpoint,
+                array(
+                    'headers' => array(
+                        'Authorization' => 'Bearer ' . $options['lsky_pro_token'],
+                        'Accept' => 'application/json',
+                    ),
+                    'timeout' => 30,
+                    'sslverify' => false
+                )
+            );
+
+            if (is_wp_error($response)) {
+                $last_error = $response->get_error_message();
+                continue;
+            }
+
+            $code = (int) wp_remote_retrieve_response_code($response);
+            $body = wp_remote_retrieve_body($response);
+            $data = json_decode($body, true);
+
+            if ($code === 404) {
+                $last_error = '接口不存在：' . $endpoint;
+                continue;
+            }
+
+            if (!is_array($data)) {
+                $last_error = '响应解析失败：' . $endpoint;
+                continue;
+            }
+
+            if (isset($data['status']) && $data['status'] !== true && $data['status'] !== 'success') {
+                $last_error = $data['message'] ?? ('获取存储策略失败：' . $endpoint);
+                continue;
+            }
+
+            // 兼容多种返回结构
+            if (isset($data['data']['strategies']) && is_array($data['data']['strategies'])) {
+                return $data['data']['strategies'];
+            }
+            if (isset($data['data']['storages']) && is_array($data['data']['storages'])) {
+                return $data['data']['storages'];
+            }
+            if (isset($data['data']) && is_array($data['data'])) {
+                return $data['data'];
+            }
+
+            // 若返回成功但没有列表字段，视为“无数据”，直接返回空数组。
+            return array();
         }
 
-        $body = wp_remote_retrieve_body($response);
-        $data = json_decode($body, true);
-        
-        if (!isset($data['status']) || $data['status'] !== true) {
-            $this->error = $data['message'] ?? '获取存储策略失败';
-            return false;
-        }
-
-        return $data['data']['strategies'] ?? array();
+        $this->error = $last_error !== '' ? $last_error : '获取存储策略失败';
+        return false;
     }
 
     /**

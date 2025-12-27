@@ -200,7 +200,7 @@ class LskyProSetup {
         }
         
         // 验证 Token
-        $verify_response = wp_remote_get($api_url . '/profile', array(
+        $verify_response = wp_remote_get($api_url . '/user/profile', array(
             'headers' => array(
                 'Authorization' => 'Bearer ' . $options['lsky_pro_token']
             )
@@ -217,7 +217,7 @@ class LskyProSetup {
         }
         
         $verify_result = json_decode(wp_remote_retrieve_body($verify_response), true);
-        if (!isset($verify_result['status']) || $verify_result['status'] !== true) {
+        if (!is_array($verify_result) || (isset($verify_result['status']) && $verify_result['status'] !== true && $verify_result['status'] !== 'success')) {
             add_settings_error(
                 'lsky_pro_setup',
                 'token_verify_error',

@@ -124,7 +124,8 @@ jQuery(document).ready(function($) {
             success: function(response) {
                 if (response.success) {
                     const userInfoResp = response.data && response.data.user_info ? response.data.user_info : null;
-                    if (!userInfoResp || userInfoResp.status !== true) {
+                    const statusOk = userInfoResp && (userInfoResp.status === true || userInfoResp.status === 'success');
+                    if (!userInfoResp || !statusOk) {
                         const msg = userInfoResp && userInfoResp.message ? userInfoResp.message : '获取用户信息失败';
                         $('#user-info').html('<div class="alert alert-danger">' + msg + '</div>');
                         return;
@@ -156,18 +157,25 @@ jQuery(document).ready(function($) {
                     html += '<tr><td><strong>用户名：</strong></td><td>' + displayName + '</td></tr>';
                     html += '<tr><td><strong>邮箱：</strong></td><td>' + (info.email || '未知') + '</td></tr>';
 
-                    // 有些接口返回 capacity/size 为 KB，有些返回 bytes，这里保持宽松兼容
-                    if (info.size !== undefined && info.capacity !== undefined) {
+                    // v2: used_storage/total_storage（通常为 KB）；旧：size/capacity
+                    if (info.used_storage !== undefined && info.total_storage !== undefined) {
+                        const usedBytes = Number(info.used_storage) * 1024;
+                        const totalBytes = Number(info.total_storage) * 1024;
+                        const percentage = totalBytes > 0 ? ((usedBytes / totalBytes) * 100).toFixed(2) : '0.00';
+                        html += '<tr><td><strong>已使用空间：</strong></td><td>' + formatSize(usedBytes) + ' / ' + formatSize(totalBytes) + ' (' + percentage + '%)</td></tr>';
+                    } else if (info.size !== undefined && info.capacity !== undefined) {
                         const usedBytes = Number(info.size) * 1024;
                         const totalBytes = Number(info.capacity) * 1024;
                         const percentage = totalBytes > 0 ? ((usedBytes / totalBytes) * 100).toFixed(2) : '0.00';
                         html += '<tr><td><strong>已使用空间：</strong></td><td>' + formatSize(usedBytes) + ' / ' + formatSize(totalBytes) + ' (' + percentage + '%)</td></tr>';
+                    } else if (info.total_storage !== undefined) {
+                        html += '<tr><td><strong>总容量：</strong></td><td>' + formatSize(Number(info.total_storage) * 1024) + '</td></tr>';
                     } else if (info.capacity !== undefined) {
                         html += '<tr><td><strong>总容量：</strong></td><td>' + formatSize(info.capacity) + '</td></tr>';
                     }
 
-                    html += '<tr><td><strong>图片数量：</strong></td><td>' + (info.image_num || '0') + '</td></tr>';
-                    html += '<tr><td><strong>相册数量：</strong></td><td>' + (info.album_num || '0') + '</td></tr>';
+                    html += '<tr><td><strong>图片数量：</strong></td><td>' + (info.photo_count !== undefined ? info.photo_count : (info.image_num || '0')) + '</td></tr>';
+                    html += '<tr><td><strong>相册数量：</strong></td><td>' + (info.album_count !== undefined ? info.album_count : (info.album_num || '0')) + '</td></tr>';
                     if (info.url) {
                         html += '<tr><td><strong>个人主页：</strong></td><td><a href="' + info.url + '" target="_blank">' + info.url + '</a></td></tr>';
                     }

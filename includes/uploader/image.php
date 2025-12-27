@@ -43,6 +43,12 @@ trait LskyProUploaderImageTrait {
         }
 
         $max_size = 20 * 1024 * 1024;
+        if (method_exists($this, 'get_max_upload_size_bytes')) {
+            $remote_max = (int) $this->get_max_upload_size_bytes();
+            if ($remote_max > 0) {
+                $max_size = $remote_max;
+            }
+        }
         if ($filesize > $max_size) {
             $this->error = sprintf(
                 '文件大小超过限制: %s (最大: %s)',
@@ -67,13 +73,24 @@ trait LskyProUploaderImageTrait {
             'image/bmp',
             'image/x-icon',
             'image/vnd.adobe.photoshop',
-            'image/webp'
+            'image/webp',
+            'image/avif',
+            'image/heic',
+            'image/heif',
         );
 
         $allowed_extensions = array(
             'jpeg', 'jpg', 'png', 'gif', 'tif', 'tiff',
             'bmp', 'ico', 'psd', 'webp'
         );
+
+        // v2: 根据组配置允许的文件类型动态限制
+        if (method_exists($this, 'get_allowed_file_types')) {
+            $remote_exts = $this->get_allowed_file_types();
+            if (is_array($remote_exts) && !empty($remote_exts)) {
+                $allowed_extensions = array_map('strtolower', $remote_exts);
+            }
+        }
 
         $ext = strtolower(pathinfo($file_path, PATHINFO_EXTENSION));
         if (!in_array($ext, $allowed_extensions)) {

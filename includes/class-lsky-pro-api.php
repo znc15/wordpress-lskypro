@@ -17,14 +17,40 @@ class LskyProApi {
      * 获取用户信息
      */
     public function get_user_info() {
-        return $this->make_request('GET', '/profile');
+        return $this->make_request('GET', '/user/profile');
     }
     
     /**
      * 获取存储策略列表
      */
     public function get_strategies() {
-        return $this->make_request('GET', '/strategies');
+        // v2 推荐：通过 /group 获取当前组允许的 storages
+        $group = $this->get_group();
+        if ($group !== false) {
+            return $group;
+        }
+
+        $endpoints = array(
+            '/strategies',
+            '/storages',
+            '/storage/strategies',
+        );
+
+        foreach ($endpoints as $endpoint) {
+            $result = $this->make_request('GET', $endpoint);
+            if ($result !== false) {
+                return $result;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * 获取当前所在组信息（包含 storages / allow_file_types 等）
+     */
+    public function get_group() {
+        return $this->make_request('GET', '/group');
     }
     
     /**
@@ -36,7 +62,7 @@ class LskyProApi {
             return false;
         }
 
-        $base_url = $this->normalize_v1_base_url($this->api_url);
+        $base_url = $this->normalize_api_base_url($this->api_url);
 
         $curl = curl_init();
         curl_setopt_array($curl, array(
@@ -77,15 +103,26 @@ class LskyProApi {
             return false;
         }
 
-        return $result;
+        // 兼容：部分接口 status 为布尔 true；新版为字符串 success
+        if (isset($result['status']) && ($result['status'] === true || $result['status'] === 'success')) {
+            return $result;
+        }
+
+        // 若接口未提供 status 字段，则直接返回解析结果（保持宽松兼容）。
+        if (!array_key_exists('status', $result)) {
+            return $result;
+        }
+
+        $this->error = isset($result['message']) ? (string) $result['message'] : 'API响应异常';
+        return false;
     }
 
     /**
-     * 旧版本接口统一使用 /api/v1。
-     * 允许配置项填写到 /api/v2 或仅域名，这里会自动归一化。
+     * 归一化 API Base URL。
+     * 允许配置项填写到 /api/v2 或仅域名；如果没有版本路径，则默认补 /api/v2。
      */
-    private function normalize_v1_base_url($url) {
-        $base = rtrim((string)$url, '/');
+    private function normalize_api_base_url($url) {
+        $base = rtrim((string) $url, '/');
         $parsed = wp_parse_url($base);
         if (!is_array($parsed) || empty($parsed['scheme']) || empty($parsed['host'])) {
             return $base;
@@ -96,10 +133,8 @@ class LskyProApi {
         $port = isset($parsed['port']) ? ':' . $parsed['port'] : '';
         $path = isset($parsed['path']) ? $parsed['path'] : '';
 
-        if (preg_match('~/api/v\d+~', $path)) {
-            $path = preg_replace('~/api/v\d+~', '/api/v1', $path, 1);
-        } else {
-            $path = rtrim($path, '/') . '/api/v1';
+        if (!preg_match('~/api/v\d+~', $path)) {
+            $path = rtrim($path, '/') . '/api/v2';
         }
 
         return $scheme . '://' . $host . $port . rtrim($path, '/');
