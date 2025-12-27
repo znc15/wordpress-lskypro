@@ -30,10 +30,16 @@ function lsky_pro_admin_scripts($hook) {
 
     // 注册并加载自定义样式和脚本
     wp_enqueue_style('lsky-pro-admin', plugins_url('assets/css/admin-style.css', LSKY_PRO_PLUGIN_FILE));
-    wp_enqueue_script('lsky-pro-admin', plugins_url('assets/js/admin-script.js', LSKY_PRO_PLUGIN_FILE), array('jquery', 'bootstrap'), null, true);
 
-    // 本地化脚本
-    wp_localize_script('lsky-pro-admin', 'lskyProData', array(
+    // Vue3（无构建：CDN 版本，仅用于批量处理区域）
+    wp_enqueue_script('vue', 'https://unpkg.com/vue@3/dist/vue.global.prod.js', array(), null, true);
+    wp_enqueue_script('lsky-pro-batch-vue', plugins_url('assets/js/batch-process-vue.js', LSKY_PRO_PLUGIN_FILE), array('vue', 'bootstrap'), null, true);
+
+    // 旧版管理脚本：保留用户信息等功能；批处理/更新检查会在检测到 Vue 后自动跳过
+    wp_enqueue_script('lsky-pro-admin', plugins_url('assets/js/admin-script.js', LSKY_PRO_PLUGIN_FILE), array('jquery', 'bootstrap', 'lsky-pro-batch-vue'), null, true);
+
+    // 本地化脚本（Vue 批处理与旧 admin-script 共用）
+    wp_localize_script('lsky-pro-batch-vue', 'lskyProData', array(
         'nonce' => wp_create_nonce('lsky_pro_ajax'),
         'batchNonce' => wp_create_nonce('lsky_pro_batch'),
         'ajaxurl' => admin_url('admin-ajax.php')

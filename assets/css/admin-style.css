@@ -6,16 +6,22 @@ table.widefat {
     padding: 20px;
 }
 
+[v-cloak] {
+    display: none;
+}
+
 .lsky-card {
     background: #fff;
     border-radius: 8px;
     box-shadow: 0 2px 4px rgba(0,0,0,.1);
     margin-bottom: 24px;
+    border: 1px solid #e5e7eb;
 }
 
 .lsky-card-header {
     padding: 16px 20px;
     border-bottom: 1px solid #e5e7eb;
+    background: #f8fafc;
 }
 
 .lsky-card-header h2 {
@@ -37,6 +43,72 @@ table.widefat {
 .user-info-table td {
     padding: 12px;
     border-bottom: 1px solid #e5e7eb;
+    vertical-align: top;
+}
+
+.user-info-table td:first-child {
+    width: 120px;
+    color: #334155;
+}
+
+.user-info-table tr:nth-child(odd) td {
+    background: rgba(248, 250, 252, 0.6);
+}
+
+.user-info-table a {
+    color: #2271b1;
+    text-decoration: none;
+}
+
+.user-info-table a:hover {
+    text-decoration: underline;
+}
+
+/* 基本设置（WP form-table）质感优化 */
+.lsky-dashboard .form-table {
+    margin-top: 0;
+    border-collapse: separate;
+    border-spacing: 0 12px;
+}
+
+.lsky-dashboard .form-table th {
+    padding: 8px 12px 8px 0;
+    width: 140px;
+    color: #334155;
+    font-weight: 600;
+}
+
+.lsky-dashboard .form-table td {
+    padding: 0;
+}
+
+.lsky-dashboard .form-table input.regular-text,
+.lsky-dashboard .form-table input[type="text"],
+.lsky-dashboard .form-table input[type="number"],
+.lsky-dashboard .form-table select {
+    width: 100%;
+    max-width: 520px;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 10px 12px;
+    background: #ffffff;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.lsky-dashboard .form-table input.regular-text:focus,
+.lsky-dashboard .form-table input[type="text"]:focus,
+.lsky-dashboard .form-table input[type="number"]:focus,
+.lsky-dashboard .form-table select:focus {
+    border-color: #2271b1;
+    box-shadow: 0 0 0 3px rgba(34, 113, 177, 0.12);
+    outline: none;
+}
+
+.lsky-dashboard .form-table p.description {
+    margin: 8px 0 0;
+    color: #64748b;
+    font-size: 13px;
 }
 
 .user-info-table tr:last-child td {
@@ -110,6 +182,23 @@ table.widefat {
 /* 版本信息样式 */
 .version-info {
     padding: 10px 0;
+}
+
+/* 批量处理区域样式（复用现有配色体系） */
+.batch-section {
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    background: #f8fafc;
+    padding: 14px;
+}
+
+.batch-section h3 {
+    color: #1e293b;
+}
+
+/* Modal 内日志容器：更紧凑 */
+.modal .log-container {
+    margin-top: 8px;
 }
 
 .badge {

@@ -1,4 +1,6 @@
 jQuery(document).ready(function($) {
+    const vueBatchActive = (typeof window !== 'undefined' && window.__LSKY_BATCH_VUE_ACTIVE__ === true);
+
     const ajaxEndpoint = (typeof lskyProData !== 'undefined' && lskyProData && lskyProData.ajaxurl)
         ? lskyProData.ajaxurl
         : (typeof ajaxurl !== 'undefined' ? ajaxurl : null);
@@ -14,9 +16,9 @@ jQuery(document).ready(function($) {
         return new bootstrap.Tooltip(tooltipTriggerEl)
     });
 
-    const progressModal = new bootstrap.Modal(document.getElementById('progressModal'));
+    const progressModal = vueBatchActive ? null : new bootstrap.Modal(document.getElementById('progressModal'));
 
-    // 批量处理状态
+    // 批量处理状态（Vue 接管时不启用旧逻辑）
     let isProcessing = false;
     let shouldStop = false;
     let currentType = null;
@@ -153,9 +155,14 @@ jQuery(document).ready(function($) {
                         return size.toFixed(decimalPlaces) + ' ' + units[i];
                     }
 
-                    let html = '<table class="widefat" style="background: transparent; border: none;">';
-                    html += '<tr><td><strong>用户名：</strong></td><td>' + displayName + '</td></tr>';
-                    html += '<tr><td><strong>邮箱：</strong></td><td>' + (info.email || '未知') + '</td></tr>';
+                    let html = '';
+                    html += '<div class="mb-3">';
+                    html += '  <div style="font-weight:600; font-size:16px; color:#1e293b;">' + displayName + '</div>';
+                    html += '  <div style="color:#64748b; font-size:13px;">账号信息概览</div>';
+                    html += '</div>';
+                    html += '<table class="user-info-table">';
+                    html += '<tr><td><strong>用户名</strong></td><td>' + displayName + '</td></tr>';
+                    html += '<tr><td><strong>邮箱</strong></td><td>' + (info.email || '未知') + '</td></tr>';
 
                     // v2: used_storage/total_storage（通常为 KB）；旧：size/capacity
                     if (info.used_storage !== undefined && info.total_storage !== undefined) {
@@ -174,10 +181,10 @@ jQuery(document).ready(function($) {
                         html += '<tr><td><strong>总容量：</strong></td><td>' + formatSize(info.capacity) + '</td></tr>';
                     }
 
-                    html += '<tr><td><strong>图片数量：</strong></td><td>' + (info.photo_count !== undefined ? info.photo_count : (info.image_num || '0')) + '</td></tr>';
-                    html += '<tr><td><strong>相册数量：</strong></td><td>' + (info.album_count !== undefined ? info.album_count : (info.album_num || '0')) + '</td></tr>';
+                    html += '<tr><td><strong>图片数量</strong></td><td>' + (info.photo_count !== undefined ? info.photo_count : (info.image_num || '0')) + '</td></tr>';
+                    html += '<tr><td><strong>相册数量</strong></td><td>' + (info.album_count !== undefined ? info.album_count : (info.album_num || '0')) + '</td></tr>';
                     if (info.url) {
-                        html += '<tr><td><strong>个人主页：</strong></td><td><a href="' + info.url + '" target="_blank">' + info.url + '</a></td></tr>';
+                        html += '<tr><td><strong>个人主页</strong></td><td><a href="' + info.url + '" target="_blank" rel="noopener">' + info.url + '</a></td></tr>';
                     }
                     html += '</table>';
 
@@ -192,51 +199,53 @@ jQuery(document).ready(function($) {
         });
     }
 
-    // 开始处理媒体库图片
-    $('#start-media-batch').click(function() {
-        if (isProcessing) return;
-        isProcessing = true;
-        currentType = 'media';
-        shouldStop = false;
+    if (!vueBatchActive) {
+        // 开始处理媒体库图片
+        $('#start-media-batch').click(function() {
+            if (isProcessing) return;
+            isProcessing = true;
+            currentType = 'media';
+            shouldStop = false;
 
-        $(this).hide();
-        $('#stop-media-batch').show();
-        $('#media-batch-progress').show();
-        $('.log-content').empty();
-        progressModal.show();
-        addLog('开始处理媒体库图片...');
-        processBatch('media');
-    });
-
-    // 开始处理文章图片
-    $('#start-post-batch').click(function() {
-        if (isProcessing) return;
-        isProcessing = true;
-        currentType = 'post';
-        shouldStop = false;
-
-        $(this).hide();
-        $('#stop-post-batch').show();
-        $('#post-batch-progress').show();
-        $('.log-content').empty();
-        progressModal.show();
-        addLog('开始处理文章图片...');
-        processBatch('post');
-    });
-
-    // 停止处理按钮事件
-    $('#stop-media-batch, #stop-post-batch').click(function() {
-        $(this).prop('disabled', true);
-        addLog('正在停止处理...');
-        shouldStop = true;
-    });
-
-    // 模态框关闭事件
-    $('#progressModal').on('hidden.bs.modal', function () {
-        if (isProcessing) {
+            $(this).hide();
+            $('#stop-media-batch').show();
+            $('#media-batch-progress').show();
+            $('.log-content').empty();
             progressModal.show();
-        }
-    });
+            addLog('开始处理媒体库图片...');
+            processBatch('media');
+        });
+
+        // 开始处理文章图片
+        $('#start-post-batch').click(function() {
+            if (isProcessing) return;
+            isProcessing = true;
+            currentType = 'post';
+            shouldStop = false;
+
+            $(this).hide();
+            $('#stop-post-batch').show();
+            $('#post-batch-progress').show();
+            $('.log-content').empty();
+            progressModal.show();
+            addLog('开始处理文章图片...');
+            processBatch('post');
+        });
+
+        // 停止处理按钮事件
+        $('#stop-media-batch, #stop-post-batch').click(function() {
+            $(this).prop('disabled', true);
+            addLog('正在停止处理...');
+            shouldStop = true;
+        });
+
+        // 模态框关闭事件
+        $('#progressModal').on('hidden.bs.modal', function () {
+            if (isProcessing) {
+                progressModal.show();
+            }
+        });
+    }
 
     // 检查更新函数
     function checkUpdate() {
@@ -283,6 +292,8 @@ jQuery(document).ready(function($) {
     // 加载用户信息
     loadInfo();
 
-    // 在页面加载时检查更新
-    checkUpdate();
+    // 在页面加载时检查更新（Vue 接管时由 Vue 触发）
+    if (!vueBatchActive) {
+        checkUpdate();
+    }
 }); 

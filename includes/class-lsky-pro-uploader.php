@@ -230,15 +230,8 @@ class LskyProUploader {
 
         // 准备上传
         $cfile = new CURLFile($file_path, $image_info['mime_type'], basename($file_path));
-        
-        // OpenAPI: /upload (multipart/form-data)
-        // 使用用户配置的 API 地址作为 base；若你的服务是 v2，请配置为 https://xxx/api/v2
-        $upload_url = rtrim((string)$this->api_url, '/') . '/upload';
 
-        // OpenAPI 字段：file(required), storage_id(required), expired_at, is_public...
-        // 按你的要求：
-        // 1) token 直接是配置的 token（不生成临时 token）
-        // 2) 不传 album_id
+        $upload_url = rtrim((string)$this->api_url, '/') . '/upload';
         $expired_at = isset($options['expired_at']) ? sanitize_text_field($options['expired_at']) : '';
 
         // 兼容旧设置 permission(1=公开,0=私有) => is_public(bool)
