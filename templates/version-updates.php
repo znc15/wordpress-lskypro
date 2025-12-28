@@ -4,6 +4,26 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
+// 手动检查更新：清除缓存并重新拉取。
+$lsky_pro_did_force_refresh = false;
+if (
+    isset($_POST['lsky_pro_release_refresh'], $_POST['lsky_pro_release_refresh_nonce'])
+    && $_POST['lsky_pro_release_refresh'] === '1'
+    && current_user_can('manage_options')
+    && wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['lsky_pro_release_refresh_nonce'])), 'lsky_pro_release_refresh')
+) {
+    $refresh_api_url = apply_filters(
+        'lsky_pro_github_releases_latest_url',
+        'https://api.github.com/repos/znc15/wordpress-lskypro/releases/latest'
+    );
+    $refresh_api_url = trim((string) $refresh_api_url);
+    if ($refresh_api_url !== '') {
+        $refresh_cache_key = 'lsky_pro_github_latest_release_v1_' . md5($refresh_api_url);
+        delete_transient($refresh_cache_key);
+        $lsky_pro_did_force_refresh = true;
+    }
+}
+
 if (!function_exists('lsky_pro_fetch_github_latest_release')) {
     function lsky_pro_fetch_github_latest_release() {
         $api_url = apply_filters(
@@ -105,6 +125,11 @@ $fetched_at = (int) ($remote['fetched_at'] ?? 0);
             <?php if ($source_url !== '') : ?>
                 <a href="<?php echo esc_url($source_url); ?>" target="_blank" rel="noopener noreferrer">查看原文</a>
             <?php endif; ?>
+            <form method="post" class="d-inline ms-2">
+                <input type="hidden" name="lsky_pro_release_refresh" value="1" />
+                <?php wp_nonce_field('lsky_pro_release_refresh', 'lsky_pro_release_refresh_nonce'); ?>
+                <button type="submit" class="btn btn-outline-primary btn-sm">手动检查更新</button>
+            </form>
             <?php if ($fetched_at > 0) : ?>
                 <span class="text-muted ms-2">更新时间：<?php echo esc_html(wp_date('Y-m-d H:i:s', $fetched_at)); ?></span>
             <?php endif; ?>

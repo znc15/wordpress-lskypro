@@ -115,7 +115,6 @@ table.widefat {
     font-size: 13px;
 }
 
-/* 修复：checkbox/radio 与文字未对齐（WP 后台 + Bootstrap 样式叠加时易出现） */
 .lsky-dashboard .form-check {
     display: flex;
     align-items: center;

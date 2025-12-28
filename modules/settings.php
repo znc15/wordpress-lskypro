@@ -302,7 +302,7 @@ function lsky_pro_api_url_render() {
             required
         >
     </div>
-    <p class="description">示例：<code>https://your-domain.com/api/v2</code>（通常为 LskyPro v2）。</p>
+    <p class="description">示例：<code>https://your-domain.com/api/v2</code></p>
     <?php
 }
 
@@ -321,6 +321,8 @@ function lsky_pro_token_render() {
         >
     </div>
     <p class="description">用于上传鉴权。建议仅授予必要权限。</p>
+
+    <p class="description">示例：<code>1|JVaaB4K7ves2G16DU2O9YvjCO9m8c9SmM7eRXt86cb22710f</code></p>
     <?php
 }
 
