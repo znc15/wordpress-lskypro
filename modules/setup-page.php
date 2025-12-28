@@ -8,7 +8,22 @@ if (!defined('ABSPATH')) {
 function lsky_pro_check_installation() {
     // 检查是否在插件设置页面
     $current_screen = get_current_screen();
-    if ($current_screen && $current_screen->id === 'toplevel_page_lsky-pro-settings') {
+    if ($current_screen) {
+        // 避免在配置向导页自身触发重定向
+        if (strpos($current_screen->id, 'admin_page_lsky-pro-setup') === 0) {
+            return;
+        }
+
+        // 覆盖顶级页与所有子页面
+        $is_lsky_admin = (
+            $current_screen->id === 'toplevel_page_lsky-pro-settings'
+            || strpos($current_screen->id, 'lsky-pro-settings_page_') === 0
+        );
+
+        if (!$is_lsky_admin) {
+            return;
+        }
+
         // 检查 install.lock 文件是否存在
         if (!file_exists(LSKY_PRO_PLUGIN_DIR . 'install.lock')) {
             // 添加管理通知

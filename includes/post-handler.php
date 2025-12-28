@@ -13,11 +13,6 @@ class LskyProPostHandler {
         
         // 添加保存文章时的钩子，优先级设为较低以确保在其他操作后执行
         add_action('save_post', array($this, 'handle_post_save'), 999, 3);
-        
-        // 移除其他钩子，统一由 save_post 处理
-        // add_action('publish_post', array($this, 'handle_post_publish'), 10, 2);
-        // add_action('draft_to_publish', array($this, 'handle_post_status_change'), 10, 1);
-        // add_action('pending_to_publish', array($this, 'handle_post_status_change'), 10, 1);
     }
     
     /**

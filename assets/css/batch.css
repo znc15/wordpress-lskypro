@@ -1,0 +1,63 @@
+/* 批量处理页面专用样式（仅在 lsky-pro-batch 页面加载） */
+
+/* 初始隐藏：由 JS 通过 jQuery.show() 显示（会写入 inline display 覆盖此处） */
+#lsky-batch-app #update-info,
+#lsky-batch-app #download-link,
+#lsky-batch-app #stop-media-batch,
+#lsky-batch-app #stop-post-batch,
+#lsky-batch-app #media-batch-progress,
+#lsky-batch-app #post-batch-progress,
+#lsky-batch-app #batch-log {
+    display: none;
+}
+
+/* 进度条初始宽度 */
+#lsky-batch-app .progress-bar {
+    width: 0%;
+}
+
+/* 版本与更新区域 */
+#lsky-batch-app .lsky-batch-header {
+    border: 1px solid #e5e7eb;
+    background: #f8fafc;
+    border-radius: 12px;
+    padding: 16px;
+}
+
+/* 批量处理卡片 */
+#lsky-batch-app .batch-section {
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    background: #ffffff;
+    padding: 16px;
+}
+
+#lsky-batch-app .batch-section h3 {
+    color: #1e293b;
+}
+
+#lsky-batch-app .batch-section .btn {
+    border-radius: 10px;
+}
+
+#lsky-batch-app .batch-section .text-muted {
+    color: #64748b !important;
+}
+
+/* Modal 内日志容器：更紧凑 */
+#lsky-batch-app .modal .log-container {
+    margin-top: 8px;
+}
+
+/* 仅批量页 badge 微调，避免影响其它后台页面 */
+#lsky-batch-app .badge {
+    padding: 5px 10px;
+    border-radius: 4px;
+    font-weight: normal;
+}
+
+#lsky-batch-app #release-notes {
+    font-size: 14px;
+    margin: 10px 0;
+    white-space: pre-line;
+}

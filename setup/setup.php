@@ -45,7 +45,7 @@ class LskyProSetup {
             return;
         }
         
-        $api_url = sanitize_url($_POST['api_url']);
+        $api_url = rtrim(sanitize_url($_POST['api_url']), '/');
         $account_type = sanitize_text_field($_POST['account_type']);
         
         if (empty($api_url)) {
@@ -57,9 +57,19 @@ class LskyProSetup {
             );
             return;
         }
+
+        if (!preg_match('~/api/v2$~', $api_url)) {
+            add_settings_error(
+                'lsky_pro_setup',
+                'api_url_error',
+                'API 地址必须以 /api/v2 结尾，例如：https://img.example.com/api/v2',
+                'error'
+            );
+            return;
+        }
         
         $options = array(
-            'lsky_pro_api_url' => rtrim($api_url, '/'),
+            'lsky_pro_api_url' => $api_url,
         );
         
         if ($account_type === 'paid') {
@@ -172,7 +182,7 @@ class LskyProSetup {
                 return;
             }
             
-            if ($result['status'] !== true) {
+            if ($result['status'] !== 'success') {
                 $error_message = isset($result['message']) ? $result['message'] : '未知错误';
                 add_settings_error(
                     'lsky_pro_setup',
@@ -217,7 +227,7 @@ class LskyProSetup {
         }
         
         $verify_result = json_decode(wp_remote_retrieve_body($verify_response), true);
-        if (!is_array($verify_result) || (isset($verify_result['status']) && $verify_result['status'] !== true && $verify_result['status'] !== 'success')) {
+        if (!is_array($verify_result) || !isset($verify_result['status']) || $verify_result['status'] !== 'success') {
             add_settings_error(
                 'lsky_pro_setup',
                 'token_verify_error',
@@ -278,7 +288,7 @@ class LskyProSetup {
         if (file_exists($this->install_lock)) {
             ?>
             <script>
-                window.location.href = '<?php echo esc_js(admin_url('admin.php?page=lsky-pro-settings')); ?>';
+                window.location.href = '<?php echo esc_js(admin_url('admin.php?page=lsky-pro-config')); ?>';
             </script>
             <?php
             return;
@@ -287,43 +297,113 @@ class LskyProSetup {
         // 生成 nonce
         $nonce = wp_create_nonce('lsky_pro_setup');
         
-        ?>
-        <script>
-            // 传递给 JavaScript
-            window.lskyProNonce = '<?php echo $nonce; ?>';
-        </script>
-        <?php
-        
-        // 加载Vue 3和Element Plus的CDN资源
-        wp_enqueue_script('vue', 'https://cdn.jsdelivr.net/npm/vue@3.3.4/dist/vue.global.prod.js', array(), null, true);
-        wp_enqueue_script('element-plus', 'https://cdn.jsdelivr.net/npm/element-plus', array('vue'), null, true);
-        wp_enqueue_style('element-plus-css', 'https://cdn.jsdelivr.net/npm/element-plus/dist/index.css');
-        wp_enqueue_script('element-plus-icons', 'https://cdn.jsdelivr.net/npm/@element-plus/icons-vue', array('vue', 'element-plus'), null, true);
-        
-        // 修改自定义脚本和样式的加载路径
-        wp_enqueue_script('lsky-pro-script', plugin_dir_url(dirname(__FILE__)) . 'assets/js/script.js', array('jquery', 'vue', 'element-plus', 'element-plus-icons'), null, true);
-        wp_enqueue_style('lsky-pro-style', plugin_dir_url(dirname(__FILE__)) . 'assets/css/style.css');
-        
-        // 加载 Animate.css
-        wp_enqueue_style('animate-css', 'https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css');
-        
         // 显示错误和通知
         settings_errors('lsky_pro_setup');
         
         // 检查重定向
         if (get_transient('lsky_pro_setup_redirect')) {
             delete_transient('lsky_pro_setup_redirect');
-            wp_redirect(admin_url('admin.php?page=lsky-pro-settings&setup=complete'));
+            wp_redirect(admin_url('admin.php?page=lsky-pro-config&setup=complete'));
             exit;
         }
         ?>
-        
+
         <script>
+            // 兼容旧逻辑：部分脚本可能读取这些变量
+            window.lskyProNonce = '<?php echo esc_js($nonce); ?>';
             var lskyProNonce = '<?php echo esc_js($nonce); ?>';
             var ajaxurl = '<?php echo esc_js(admin_url('admin-ajax.php')); ?>';
         </script>
-        <div id="lsky-pro-setup">
-            <input type="hidden" id="lsky-pro-nonce" value="<?php echo esc_attr($nonce); ?>">
+
+        <div class="wrap lsky-pro-setup-wrap">
+            <div class="lsky-pro-card">
+                <h2 class="lsky-pro-title">LskyPro 图床配置</h2>
+
+                <form id="lsky-pro-setup-form" class="mt-3" autocomplete="off">
+                    <input type="hidden" id="lsky-pro-nonce" value="<?php echo esc_attr($nonce); ?>">
+
+                    <div class="lsky-pro-account-type">
+                        <div class="btn-group w-100" role="group" aria-label="账户类型">
+                            <input type="radio" class="btn-check" name="account_type" id="lsky-account-paid" value="paid" checked>
+                            <label class="btn btn-outline-primary" for="lsky-account-paid">付费版</label>
+
+                            <input type="radio" class="btn-check" name="account_type" id="lsky-account-free" value="free">
+                            <label class="btn btn-outline-primary" for="lsky-account-free">开源版</label>
+                        </div>
+                        <p class="lsky-pro-description text-center mt-2 mb-0" id="lsky-account-desc">付费版需要输入购买的授权Token</p>
+                    </div>
+
+                    <div class="lsky-pro-form-group">
+                        <label for="lsky-api-url">API 地址</label>
+                        <input
+                            type="url"
+                            class="lsky-pro-input"
+                            id="lsky-api-url"
+                            name="api_url"
+                            placeholder="例如: https://img.example.com/api/v2"
+                            autocomplete="url"
+                            required
+                        >
+                        <p class="lsky-pro-description">必须填写到 /api/v2 结尾</p>
+                    </div>
+
+                    <div id="lsky-paid-fields" class="lsky-pro-fields-container">
+                        <div class="lsky-pro-form-group">
+                            <label for="lsky-token">Token</label>
+                            <input
+                                type="text"
+                                class="lsky-pro-input"
+                                id="lsky-token"
+                                name="token"
+                                placeholder="请输入您的授权Token"
+                                autocomplete="off"
+                            >
+                        </div>
+                    </div>
+
+                    <div id="lsky-free-fields" class="lsky-pro-fields-container" style="display:none;">
+                        <div class="lsky-pro-form-group">
+                            <label for="lsky-email">邮箱</label>
+                            <input
+                                type="email"
+                                class="lsky-pro-input"
+                                id="lsky-email"
+                                name="email"
+                                placeholder="请输入注册邮箱"
+                                autocomplete="email"
+                            >
+                        </div>
+                        <div class="lsky-pro-form-group">
+                            <label for="lsky-password">密码</label>
+                            <input
+                                type="password"
+                                class="lsky-pro-input"
+                                id="lsky-password"
+                                name="password"
+                                placeholder="请输入密码"
+                                autocomplete="current-password"
+                            >
+                        </div>
+                    </div>
+
+                    <div class="lsky-pro-submit">
+                        <button type="submit" class="btn btn-primary btn-lg w-100" id="lsky-setup-submit">
+                            <span class="btn-text">保存配置</span>
+                            <span class="spinner-border spinner-border-sm ms-2 d-none" role="status" aria-hidden="true"></span>
+                        </button>
+                    </div>
+                </form>
+
+                <div class="toast-container position-fixed bottom-0 end-0 p-3" style="z-index: 9999;">
+                    <div id="lsky-setup-toast" class="toast" role="alert" aria-live="assertive" aria-atomic="true">
+                        <div class="toast-header">
+                            <strong class="me-auto" id="lsky-setup-toast-title">提示</strong>
+                            <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
+                        </div>
+                        <div class="toast-body" id="lsky-setup-toast-body"></div>
+                    </div>
+                </div>
+            </div>
         </div>
         <?php
     }
@@ -358,16 +438,21 @@ class LskyProSetup {
             return;
         }
         
-        $api_url = sanitize_url($_POST['api_url']);
+        $api_url = rtrim(sanitize_url($_POST['api_url']), '/');
         $account_type = sanitize_text_field($_POST['account_type']);
         
         if (empty($api_url)) {
             wp_send_json_error('请输入 API 地址');
             return;
         }
+
+        if (!preg_match('~/api/v2$~', $api_url)) {
+            wp_send_json_error('API 地址必须以 /api/v2 结尾，例如：https://img.example.com/api/v2');
+            return;
+        }
         
         $options = array(
-            'lsky_pro_api_url' => rtrim($api_url, '/'),
+            'lsky_pro_api_url' => $api_url,
         );
         
         if ($account_type === 'paid') {
@@ -412,7 +497,7 @@ class LskyProSetup {
             }
             
             $result = json_decode(wp_remote_retrieve_body($response), true);
-            if (!isset($result['status']) || $result['status'] !== true) {
+            if (!isset($result['status']) || $result['status'] !== 'success') {
                 wp_send_json_error('获取 Token 失败：' . ($result['message'] ?? '未知错误'));
                 return;
             }

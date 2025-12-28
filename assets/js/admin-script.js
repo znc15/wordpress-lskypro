@@ -6,7 +6,9 @@ jQuery(document).ready(function($) {
         : (typeof ajaxurl !== 'undefined' ? ajaxurl : null);
 
     if (!ajaxEndpoint) {
-        $('#user-info').html('<div class="alert alert-danger">未找到 AJAX 地址（ajaxurl）</div>');
+        if ($('#user-info').length) {
+            $('#user-info').html('<div class="alert alert-danger">未找到 AJAX 地址（ajaxurl）</div>');
+        }
         return;
     }
 
@@ -16,7 +18,8 @@ jQuery(document).ready(function($) {
         return new bootstrap.Tooltip(tooltipTriggerEl)
     });
 
-    const progressModal = vueBatchActive ? null : new bootstrap.Modal(document.getElementById('progressModal'));
+    const progressModalEl = document.getElementById('progressModal');
+    const progressModal = (vueBatchActive || !progressModalEl) ? null : new bootstrap.Modal(progressModalEl);
 
     // 批量处理状态（Vue 接管时不启用旧逻辑）
     let isProcessing = false;
@@ -126,16 +129,10 @@ jQuery(document).ready(function($) {
             success: function(response) {
                 if (response.success) {
                     const userInfoResp = response.data && response.data.user_info ? response.data.user_info : null;
-                    const statusOk = userInfoResp && (userInfoResp.status === true || userInfoResp.status === 'success');
+                    const statusOk = userInfoResp && (userInfoResp.status === 'success');
                     if (!userInfoResp || !statusOk) {
                         const msg = userInfoResp && userInfoResp.message ? userInfoResp.message : '获取用户信息失败';
                         $('#user-info').html('<div class="alert alert-danger">' + msg + '</div>');
-                        return;
-                    }
-
-                    // 兼容旧结构：若后端提供 html，则直接渲染
-                    if (userInfoResp.html) {
-                        $('#user-info').html(userInfoResp.html);
                         return;
                     }
 
@@ -164,25 +161,18 @@ jQuery(document).ready(function($) {
                     html += '<tr><td><strong>用户名</strong></td><td>' + displayName + '</td></tr>';
                     html += '<tr><td><strong>邮箱</strong></td><td>' + (info.email || '未知') + '</td></tr>';
 
-                    // v2: used_storage/total_storage（通常为 KB）；旧：size/capacity
+                    // v2: used_storage/total_storage（通常为 KB）
                     if (info.used_storage !== undefined && info.total_storage !== undefined) {
                         const usedBytes = Number(info.used_storage) * 1024;
                         const totalBytes = Number(info.total_storage) * 1024;
                         const percentage = totalBytes > 0 ? ((usedBytes / totalBytes) * 100).toFixed(2) : '0.00';
                         html += '<tr><td><strong>已使用空间：</strong></td><td>' + formatSize(usedBytes) + ' / ' + formatSize(totalBytes) + ' (' + percentage + '%)</td></tr>';
-                    } else if (info.size !== undefined && info.capacity !== undefined) {
-                        const usedBytes = Number(info.size) * 1024;
-                        const totalBytes = Number(info.capacity) * 1024;
-                        const percentage = totalBytes > 0 ? ((usedBytes / totalBytes) * 100).toFixed(2) : '0.00';
-                        html += '<tr><td><strong>已使用空间：</strong></td><td>' + formatSize(usedBytes) + ' / ' + formatSize(totalBytes) + ' (' + percentage + '%)</td></tr>';
                     } else if (info.total_storage !== undefined) {
                         html += '<tr><td><strong>总容量：</strong></td><td>' + formatSize(Number(info.total_storage) * 1024) + '</td></tr>';
-                    } else if (info.capacity !== undefined) {
-                        html += '<tr><td><strong>总容量：</strong></td><td>' + formatSize(info.capacity) + '</td></tr>';
                     }
 
-                    html += '<tr><td><strong>图片数量</strong></td><td>' + (info.photo_count !== undefined ? info.photo_count : (info.image_num || '0')) + '</td></tr>';
-                    html += '<tr><td><strong>相册数量</strong></td><td>' + (info.album_count !== undefined ? info.album_count : (info.album_num || '0')) + '</td></tr>';
+                    html += '<tr><td><strong>图片数量</strong></td><td>' + (info.photo_count !== undefined ? info.photo_count : '0') + '</td></tr>';
+                    html += '<tr><td><strong>相册数量</strong></td><td>' + (info.album_count !== undefined ? info.album_count : '0') + '</td></tr>';
                     if (info.url) {
                         html += '<tr><td><strong>个人主页</strong></td><td><a href="' + info.url + '" target="_blank" rel="noopener">' + info.url + '</a></td></tr>';
                     }
@@ -199,7 +189,8 @@ jQuery(document).ready(function($) {
         });
     }
 
-    if (!vueBatchActive) {
+    const hasBatchUI = $('#start-media-batch').length || $('#start-post-batch').length;
+    if (!vueBatchActive && hasBatchUI) {
         // 开始处理媒体库图片
         $('#start-media-batch').click(function() {
             if (isProcessing) return;
@@ -211,7 +202,7 @@ jQuery(document).ready(function($) {
             $('#stop-media-batch').show();
             $('#media-batch-progress').show();
             $('.log-content').empty();
-            progressModal.show();
+            if (progressModal) progressModal.show();
             addLog('开始处理媒体库图片...');
             processBatch('media');
         });
@@ -227,7 +218,7 @@ jQuery(document).ready(function($) {
             $('#stop-post-batch').show();
             $('#post-batch-progress').show();
             $('.log-content').empty();
-            progressModal.show();
+            if (progressModal) progressModal.show();
             addLog('开始处理文章图片...');
             processBatch('post');
         });
@@ -242,7 +233,7 @@ jQuery(document).ready(function($) {
         // 模态框关闭事件
         $('#progressModal').on('hidden.bs.modal', function () {
             if (isProcessing) {
-                progressModal.show();
+                if (progressModal) progressModal.show();
             }
         });
     }
@@ -253,7 +244,7 @@ jQuery(document).ready(function($) {
             url: ajaxEndpoint,
             type: 'POST',
             data: {
-                action: 'lsky_pro_check_update',
+                // 更新检查功能已移除
                 nonce: lskyProData.nonce
             },
             success: function(response) {
@@ -289,11 +280,13 @@ jQuery(document).ready(function($) {
         });
     }
 
-    // 加载用户信息
-    loadInfo();
+    // 加载用户信息（仅概览页存在）
+    if ($('#user-info').length) {
+        loadInfo();
+    }
 
     // 在页面加载时检查更新（Vue 接管时由 Vue 触发）
-    if (!vueBatchActive) {
+    if (!vueBatchActive && $('#current-version').length && $('#version-status').length) {
         checkUpdate();
     }
 }); 

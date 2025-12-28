@@ -18,6 +18,10 @@ table.widefat {
     border: 1px solid #e5e7eb;
 }
 
+.lsky-card .alert {
+    border-radius: 10px;
+}
+
 .lsky-card-header {
     padding: 16px 20px;
     border-bottom: 1px solid #e5e7eb;
@@ -182,35 +186,6 @@ table.widefat {
 /* 版本信息样式 */
 .version-info {
     padding: 10px 0;
-}
-
-/* 批量处理区域样式（复用现有配色体系） */
-.batch-section {
-    border: 1px solid #e5e7eb;
-    border-radius: 8px;
-    background: #f8fafc;
-    padding: 14px;
-}
-
-.batch-section h3 {
-    color: #1e293b;
-}
-
-/* Modal 内日志容器：更紧凑 */
-.modal .log-container {
-    margin-top: 8px;
-}
-
-.badge {
-    padding: 5px 10px;
-    border-radius: 4px;
-    font-weight: normal;
-}
-
-#release-notes {
-    font-size: 14px;
-    margin: 10px 0;
-    white-space: pre-line;
 }
 
 /* 主菜单界面美化 */

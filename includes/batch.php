@@ -96,6 +96,15 @@ class LskyProBatch {
                     $new_url = $this->uploader->upload($file);
                     if ($new_url) {
                         update_post_meta($attachment->ID, '_lsky_pro_url', $new_url);
+
+                        $photo_id = $this->uploader->getLastUploadedPhotoId();
+                        if (is_numeric($photo_id)) {
+                            $photo_id = (int) $photo_id;
+                            if ($photo_id > 0) {
+                                update_post_meta($attachment->ID, '_lsky_pro_photo_id', $photo_id);
+                            }
+                        }
+
                         $this->success++;
                         $processed_items[] = array(
                             'success' => true,

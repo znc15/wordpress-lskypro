@@ -4,55 +4,6 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-// 添加检查更新的 AJAX 处理函数
-function lsky_pro_check_update() {
-    check_ajax_referer('lsky_pro_ajax', 'nonce');
-
-    if (!current_user_can('manage_options')) {
-        wp_send_json_error('权限不足');
-    }
-
-    // 获取当前插件版本
-    $current_version = '1.0.0'; // 确保这里匹配你的插件版本
-
-    // 获取 GitHub releases
-    $response = wp_remote_get(
-        'https://api.github.com/repos/znc15/wordpress-lskypro/releases/latest',
-        array(
-            'headers' => array(
-                'Accept' => 'application/vnd.github.v3+json',
-                'User-Agent' => 'WordPress/' . get_bloginfo('version')
-            ),
-            'timeout' => 30,
-            'sslverify' => false
-        )
-    );
-
-    if (is_wp_error($response)) {
-        wp_send_json_error('检查更新失败：' . $response->get_error_message());
-    }
-
-    $body = json_decode(wp_remote_retrieve_body($response), true);
-
-    if (empty($body) || !isset($body['tag_name'])) {
-        wp_send_json_error('无法获取最新版本信息');
-    }
-
-    // 移除版本号前的 'v' 字符（如果存在）
-    $latest_version = ltrim($body['tag_name'], 'v');
-
-    $result = array(
-        'current_version' => $current_version,
-        'latest_version' => $latest_version,
-        'has_update' => version_compare($latest_version, $current_version, '>'),
-        'download_url' => $body['zipball_url'] ?? '',
-        'release_notes' => $body['body'] ?? ''
-    );
-
-    wp_send_json_success($result);
-}
-add_action('wp_ajax_lsky_pro_check_update', 'lsky_pro_check_update');
-
 /**
  * 处理AJAX请求
  */
@@ -135,7 +86,7 @@ function lsky_pro_get_token_ajax() {
     }
 
     $result = json_decode(wp_remote_retrieve_body($response), true);
-    if (!is_array($result) || (isset($result['status']) && $result['status'] !== true && $result['status'] !== 'success')) {
+    if (!is_array($result) || !isset($result['status']) || $result['status'] !== 'success') {
         wp_send_json_error(array('message' => $result['message'] ?? '未知错误'));
     }
 

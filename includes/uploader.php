@@ -18,6 +18,7 @@ class LskyProUploader {
     private $log_dir;
     private $requirements = array();
     private $last_request_context = array();
+    private $last_uploaded_photo_id = null;
 
     use LskyProUploaderLoggingTrait;
     use LskyProUploaderRequirementsTrait;
@@ -69,7 +70,7 @@ class LskyProUploader {
             return false;
         }
 
-        if (isset($body['status']) && $body['status'] !== true && $body['status'] !== 'success') {
+        if (!isset($body['status']) || $body['status'] !== 'success') {
             $this->error = $body['message'] ?? '获取用户信息失败';
             return false;
         }
@@ -127,7 +128,7 @@ class LskyProUploader {
             return false;
         }
 
-        if (isset($data['status']) && $data['status'] !== true && $data['status'] !== 'success') {
+        if (!isset($data['status']) || $data['status'] !== 'success') {
             $this->error = $data['message'] ?? '获取组信息失败';
             return false;
         }
@@ -184,14 +185,15 @@ class LskyProUploader {
             $this->logError($file_path, $this->error);
             return false;
         }
+
+        // 每次上传前重置，避免外部复用实例时拿到旧值。
+        $this->last_uploaded_photo_id = null;
         
-        // 获取存储ID（OpenAPI: storage_id；兼容旧配置 strategy_id）
+        // 获取存储ID（OpenAPI: storage_id）
         $options = get_option('lsky_pro_options');
         $storage_id = 0;
         if (isset($options['storage_id'])) {
             $storage_id = intval($options['storage_id']);
-        } elseif (isset($options['strategy_id'])) {
-            $storage_id = intval($options['strategy_id']);
         }
 
         // 若未设置或设置了无效 id，则尝试从 /group.storages 自动选择一个可用 id。
@@ -232,11 +234,7 @@ class LskyProUploader {
         $cfile = new CURLFile($file_path, $image_info['mime_type'], basename($file_path));
 
         $upload_url = rtrim((string)$this->api_url, '/') . '/upload';
-        $expired_at = isset($options['expired_at']) ? sanitize_text_field($options['expired_at']) : '';
-
-        // 兼容旧设置 permission(1=公开,0=私有) => is_public(bool)
-        $permission = isset($options['permission']) ? intval($options['permission']) : 1;
-        $is_public = $permission === 1;
+        $is_public = true;
 
         // 记录本次请求参数（脱敏），用于失败时回传。
         $this->setUploadRequestContext(array(
@@ -245,7 +243,6 @@ class LskyProUploader {
             'fields' => array(
                 'storage_id' => (int) $storage_id,
                 'is_public' => $is_public ? 1 : 0,
-                'expired_at' => $expired_at !== '' ? $expired_at : null,
                 // 不回传 token 值，避免泄露；仅标记是否携带。
                 'token_present' => 1,
             ),
@@ -263,9 +260,6 @@ class LskyProUploader {
             'storage_id' => $storage_id,
             'is_public' => $is_public ? '1' : '0',
         );
-        if ($expired_at !== '') {
-            $post_data['expired_at'] = $expired_at;
-        }
 
         $this->debug_log('准备发送请求到: ' . $upload_url);
 
@@ -426,14 +420,8 @@ class LskyProUploader {
             return false;
         }
         
-        // 检查API响应（兼容 status 为 bool 或字符串）
-        $status_ok = false;
-        if (isset($result['status'])) {
-            if ($result['status'] === true || $result['status'] === 1 || $result['status'] === 'true' || $result['status'] === 'success') {
-                $status_ok = true;
-            }
-        }
-        if (!$status_ok) {
+        // 检查API响应（仅接受新版：status=success）
+        if (!isset($result['status']) || $result['status'] !== 'success') {
             $this->error = '上传失败: ' . ($result['message'] ?? '未知错误');
             $this->logError(
                 $file_path,
@@ -446,19 +434,97 @@ class LskyProUploader {
             return false;
         }
         
-        // 获取图片URL（兼容旧/新字段）
-        $image_url = $result['data']['links']['url'] ?? '';
-        if ($image_url === '' && isset($result['data']['public_url'])) {
-            $image_url = (string) $result['data']['public_url'];
+        // 获取图片URL（v2：优先从 data.links 中挑选可用 URL；若为相对路径则转为绝对 URL）。
+        $image_url = '';
+
+        $origin = '';
+        $api_parts = wp_parse_url((string) $this->api_url);
+        if (is_array($api_parts) && !empty($api_parts['scheme']) && !empty($api_parts['host'])) {
+            $origin = $api_parts['scheme'] . '://' . $api_parts['host'];
+            if (!empty($api_parts['port'])) {
+                $origin .= ':' . $api_parts['port'];
+            }
         }
+
+        $normalize_url = function ($candidate) use ($origin) {
+            if (!is_string($candidate)) {
+                return '';
+            }
+            $candidate = trim($candidate);
+            if ($candidate === '') {
+                return '';
+            }
+            if (preg_match('#^https?://#i', $candidate)) {
+                return $candidate;
+            }
+            if ($origin !== '' && str_starts_with($candidate, '/')) {
+                return $origin . $candidate;
+            }
+            return '';
+        };
+
+        if (isset($result['data']['links']) && is_array($result['data']['links'])) {
+            // 先按常见 key 优先级取值
+            $preferred_keys = array('url', 'original_url', 'raw_url', 'public_url', 'direct_url', 'download_url', 'html');
+            foreach ($preferred_keys as $k) {
+                if (!array_key_exists($k, $result['data']['links'])) {
+                    continue;
+                }
+                $candidate = $normalize_url($result['data']['links'][$k]);
+                if ($candidate !== '') {
+                    $image_url = $candidate;
+                    break;
+                }
+            }
+
+            // 再兜底：遍历 links 任意 string 值，取第一个可用 URL
+            if ($image_url === '') {
+                foreach ($result['data']['links'] as $v) {
+                    $candidate = $normalize_url($v);
+                    if ($candidate !== '') {
+                        $image_url = $candidate;
+                        break;
+                    }
+                }
+            }
+        }
+
+        // 部分实现可能直接给 data.url / data.public_url
         if ($image_url === '' && isset($result['data']['url'])) {
-            $image_url = (string) $result['data']['url'];
+            $image_url = $normalize_url($result['data']['url']);
         }
+        if ($image_url === '' && isset($result['data']['public_url'])) {
+            $image_url = $normalize_url($result['data']['public_url']);
+        }
+
+        // 允许外部通过 filter 指定 URL（仍然只在 v2 success 后）。
+        $image_url = (string) apply_filters('lsky_pro_uploaded_image_url', $image_url, $result);
+
+        // 尝试获取图片ID（用于后续删除：DELETE /user/photos）。
+        // 不强依赖字段存在，避免影响现有上传流程。
+        $photo_id = $result['data']['id'] ?? null;
+        if ($photo_id === null && isset($result['data']['photo']['id'])) {
+            $photo_id = $result['data']['photo']['id'];
+        }
+        if ($photo_id !== null && is_numeric($photo_id)) {
+            $photo_id = (int) $photo_id;
+            if ($photo_id > 0) {
+                $this->last_uploaded_photo_id = $photo_id;
+            }
+        }
+
         if ($image_url === '') {
-            $image_url = false;
-        }
-        if (!$image_url) {
             $this->error = '无法获取图片URL';
+
+            $data_keys = '';
+            if (isset($result['data']) && is_array($result['data'])) {
+                $data_keys = implode(',', array_map('strval', array_keys($result['data'])));
+            }
+            $links_keys = '';
+            if (isset($result['data']['links']) && is_array($result['data']['links'])) {
+                $links_keys = implode(',', array_map('strval', array_keys($result['data']['links'])));
+            }
+
             $this->logError(
                 $file_path,
                 $this->error . sprintf('；请求：%s；响应片段：%s', $upload_url, $response_snippet)
@@ -467,6 +533,15 @@ class LskyProUploader {
             if ($ctx !== '') {
                 $this->error .= '；请求参数：' . $ctx;
             }
+
+            // 追加便于排查的信息（避免太长，仅展示字段名与响应片段）。
+            if ($data_keys !== '') {
+                $this->error .= '；data字段：' . $data_keys;
+            }
+            if ($links_keys !== '') {
+                $this->error .= '；links字段：' . $links_keys;
+            }
+            $this->error .= '；响应片段：' . $response_snippet;
             return false;
         }
         
@@ -475,6 +550,90 @@ class LskyProUploader {
         $this->debug_log('上传成功，图片URL: ' . $image_url);
         
         return $image_url;
+    }
+
+    /**
+     * 获取最近一次上传成功返回的图片ID（若接口返回）。
+     */
+    public function getLastUploadedPhotoId() {
+        return $this->last_uploaded_photo_id;
+    }
+
+    /**
+     * 删除图片（v2）：DELETE /user/photos，body 为图片ID数组。
+     * 成功通常返回 204。
+     */
+    public function delete_photos($photo_ids) {
+        if (!is_array($photo_ids)) {
+            $photo_ids = array($photo_ids);
+        }
+
+        $ids = array();
+        foreach ($photo_ids as $id) {
+            $id = absint($id);
+            if ($id > 0) {
+                $ids[] = $id;
+            }
+        }
+
+        $ids = array_values(array_unique($ids));
+        if (empty($ids)) {
+            return true;
+        }
+
+        if (empty($this->api_url) || empty($this->token)) {
+            $this->error = '未配置API地址或Token';
+            return false;
+        }
+
+        $url = rtrim((string) $this->api_url, '/') . '/user/photos';
+        $body = wp_json_encode($ids, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        if (!is_string($body)) {
+            $body = '[]';
+        }
+
+        $response = wp_remote_request(
+            $url,
+            array(
+                'method' => 'DELETE',
+                'headers' => array(
+                    'Authorization' => 'Bearer ' . (string) $this->token,
+                    'Accept' => 'application/json',
+                    'Content-Type' => 'application/json',
+                ),
+                'body' => $body,
+                'timeout' => 30,
+                'sslverify' => false,
+            )
+        );
+
+        if (is_wp_error($response)) {
+            $this->error = $response->get_error_message();
+            return false;
+        }
+
+        $http_code = (int) wp_remote_retrieve_response_code($response);
+        if ($http_code === 204) {
+            return true;
+        }
+
+        // 兼容部分实现返回 200/2xx + JSON。
+        if ($http_code >= 200 && $http_code < 300) {
+            $raw = (string) wp_remote_retrieve_body($response);
+            if (trim($raw) === '') {
+                return true;
+            }
+
+            $data = json_decode($raw, true);
+            if (is_array($data) && isset($data['status']) && $data['status'] === 'success') {
+                return true;
+            }
+
+            return true;
+        }
+
+        $this->error = '删除失败，HTTP ' . $http_code;
+        return false;
     }
 
     /**
@@ -487,78 +646,18 @@ class LskyProUploader {
             return false;
         }
 
-        // v2 推荐：通过 /group 获取 storages
+        // v2：通过 /group 获取 storages
         $group = $this->get_group_info();
-        if ($group !== false) {
-            $storages = $group['data']['storages'] ?? null;
-            if (is_array($storages)) {
-                return $storages;
-            }
+        if ($group === false) {
+            return false;
         }
 
-        $base = rtrim($options['lsky_pro_api_url'], '/');
-        $endpoints = array(
-            '/strategies',
-            '/storages',
-            '/storage/strategies',
-        );
-
-        $last_error = '';
-
-        foreach ($endpoints as $endpoint) {
-            $response = wp_remote_get(
-                $base . $endpoint,
-                array(
-                    'headers' => array(
-                        'Authorization' => 'Bearer ' . $options['lsky_pro_token'],
-                        'Accept' => 'application/json',
-                    ),
-                    'timeout' => 30,
-                    'sslverify' => false
-                )
-            );
-
-            if (is_wp_error($response)) {
-                $last_error = $response->get_error_message();
-                continue;
-            }
-
-            $code = (int) wp_remote_retrieve_response_code($response);
-            $body = wp_remote_retrieve_body($response);
-            $data = json_decode($body, true);
-
-            if ($code === 404) {
-                $last_error = '接口不存在：' . $endpoint;
-                continue;
-            }
-
-            if (!is_array($data)) {
-                $last_error = '响应解析失败：' . $endpoint;
-                continue;
-            }
-
-            if (isset($data['status']) && $data['status'] !== true && $data['status'] !== 'success') {
-                $last_error = $data['message'] ?? ('获取存储策略失败：' . $endpoint);
-                continue;
-            }
-
-            // 兼容多种返回结构
-            if (isset($data['data']['strategies']) && is_array($data['data']['strategies'])) {
-                return $data['data']['strategies'];
-            }
-            if (isset($data['data']['storages']) && is_array($data['data']['storages'])) {
-                return $data['data']['storages'];
-            }
-            if (isset($data['data']) && is_array($data['data'])) {
-                return $data['data'];
-            }
-
-            // 若返回成功但没有列表字段，视为“无数据”，直接返回空数组。
+        $storages = $group['data']['storages'] ?? null;
+        if (!is_array($storages)) {
             return array();
         }
 
-        $this->error = $last_error !== '' ? $last_error : '获取存储策略失败';
-        return false;
+        return $storages;
     }
 
     /**

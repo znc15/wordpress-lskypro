@@ -15,6 +15,13 @@ class LskyProUploadHandler {
         add_filter('wp_calculate_image_srcset', '__return_false');
         add_filter('wp_generate_attachment_metadata', array($this, 'attachment_metadata'), 10, 2);
         add_filter('wp_image_editors', array($this, 'disable_image_editors'));
+
+        // 删除附件时，同时删除远端图床图片（基于保存的图片ID）。
+        add_action('delete_attachment', array($this, 'handle_delete_attachment'), 10, 1);
+    }
+
+    private function get_uploaded_photo_id_transient_key($image_url) {
+        return 'lsky_pro_uploaded_photo_id_' . md5((string) $image_url);
     }
 
     /**
@@ -33,6 +40,15 @@ class LskyProUploadHandler {
             
             if ($image_url) {
                 error_log('图床上传成功: ' . $image_url);
+
+                // 保存图片ID（如果上传响应包含），用于后续删除远端图片。
+                $photo_id = $uploader->getLastUploadedPhotoId();
+                if (is_numeric($photo_id)) {
+                    $photo_id = (int) $photo_id;
+                    if ($photo_id > 0) {
+                        set_transient($this->get_uploaded_photo_id_transient_key($image_url), $photo_id, 2 * HOUR_IN_SECONDS);
+                    }
+                }
                 
                 // 保存原始文件路径
                 $original_file = $file_array['file'];
@@ -113,8 +129,36 @@ class LskyProUploadHandler {
         $file = get_post_meta($attachment_id, '_wp_attached_file', true);
         if (strpos($file, 'http') === 0) {
             update_post_meta($attachment_id, '_lsky_pro_url', $file);
+
+            $key = $this->get_uploaded_photo_id_transient_key($file);
+            $photo_id = get_transient($key);
+            if (is_numeric($photo_id)) {
+                $photo_id = (int) $photo_id;
+                if ($photo_id > 0) {
+                    update_post_meta($attachment_id, '_lsky_pro_photo_id', $photo_id);
+                }
+            }
+            delete_transient($key);
         }
         return $metadata;
+    }
+
+    /**
+     * 删除附件时删除远端图片。
+     */
+    public function handle_delete_attachment($attachment_id) {
+        $photo_id = get_post_meta($attachment_id, '_lsky_pro_photo_id', true);
+        $photo_id = absint($photo_id);
+        if ($photo_id <= 0) {
+            return;
+        }
+
+        try {
+            $uploader = new LskyProUploader();
+            $uploader->delete_photos(array($photo_id));
+        } catch (Exception $e) {
+            // 删除流程不阻塞 WordPress 本地删除。
+        }
     }
 
     /**
