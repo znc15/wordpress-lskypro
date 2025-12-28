@@ -239,6 +239,73 @@ jQuery(document).ready(function($) {
             shouldStop = true;
         });
 
+        // 重置文章批处理进度（从头开始）
+        $('#reset-post-batch').click(function() {
+            if (isProcessing) {
+                addLog('正在处理中，无法重置进度', 'error');
+                return;
+            }
+
+            const ok = window.confirm('确定要重置“文章图片处理”的进度吗？重置后下次将从头开始扫描文章。');
+            if (!ok) return;
+
+            $.ajax({
+                url: ajaxEndpoint,
+                type: 'POST',
+                data: {
+                    action: 'lsky_pro_reset_post_batch',
+                    nonce: (lskyProData && lskyProData.batchNonce) ? lskyProData.batchNonce : ''
+                },
+                success: function(response) {
+                    if (!response || !response.success) {
+                        const msg = response && response.data && response.data.message ? response.data.message : (response && response.data ? response.data : '重置失败');
+                        addLog(msg, 'error');
+                        return;
+                    }
+
+                    // 重置进度条显示
+                    $('#post-batch-progress .progress-bar').css('width', '0%');
+                    addLog(response.data && response.data.message ? response.data.message : '已重置文章批处理进度', 'success');
+                },
+                error: function(xhr, status, error) {
+                    addLog('请求失败，请重试: ' + (error || status), 'error');
+                }
+            });
+        });
+
+        // 重置媒体库批处理进度（从头开始）
+        $('#reset-media-batch').click(function() {
+            if (isProcessing) {
+                addLog('正在处理中，无法重置进度', 'error');
+                return;
+            }
+
+            const ok = window.confirm('确定要重置“媒体库图片处理”的进度吗？这会清除已上传图片的图床记录，下次将重新上传，可能产生重复图片。');
+            if (!ok) return;
+
+            $.ajax({
+                url: ajaxEndpoint,
+                type: 'POST',
+                data: {
+                    action: 'lsky_pro_reset_media_batch',
+                    nonce: (lskyProData && lskyProData.batchNonce) ? lskyProData.batchNonce : ''
+                },
+                success: function(response) {
+                    if (!response || !response.success) {
+                        const msg = response && response.data && response.data.message ? response.data.message : (response && response.data ? response.data : '重置失败');
+                        addLog(msg, 'error');
+                        return;
+                    }
+
+                    $('#media-batch-progress .progress-bar').css('width', '0%');
+                    addLog(response.data && response.data.message ? response.data.message : '已重置媒体库批处理进度', 'success');
+                },
+                error: function(xhr, status, error) {
+                    addLog('请求失败，请重试: ' + (error || status), 'error');
+                }
+            });
+        });
+
         // 模态框关闭事件
         $('#progressModal').on('hidden.bs.modal', function () {
             if (isProcessing) {

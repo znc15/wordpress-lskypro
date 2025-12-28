@@ -12,6 +12,7 @@
                 <div class="d-grid gap-2">
                     <button id="start-media-batch" class="btn btn-primary">开始处理</button>
                     <button id="stop-media-batch" class="btn btn-outline-secondary">停止处理</button>
+                    <button id="reset-media-batch" class="btn btn-outline-danger">重置进度（从头开始）</button>
                 </div>
 
                 <div class="mt-3 text-muted small">处理过程会在对话框中显示进度与日志。</div>
@@ -30,6 +31,7 @@
                 <div class="d-grid gap-2">
                     <button id="start-post-batch" class="btn btn-primary">开始处理</button>
                     <button id="stop-post-batch" class="btn btn-outline-secondary">停止处理</button>
+                    <button id="reset-post-batch" class="btn btn-outline-danger">重置进度（从头开始）</button>
                 </div>
 
                 <div class="mt-3 text-muted small">建议在站点访问较少时执行批处理。</div>

@@ -23,6 +23,11 @@ class LskyProBatch {
      * 文件类型标记：0=非限制文件，1=限制文件（例如头像）
      */
     private $type_meta_key = '_lsky_pro_type';
+
+    /**
+     * 文章批处理完成标记 meta key（1 表示该文章已完成批处理）
+     */
+    private $post_done_meta_key = '_lsky_pro_post_batch_done';
     
     public function __construct() {
         $this->uploader = new LskyProUploader();
@@ -30,6 +35,78 @@ class LskyProBatch {
         // 注册 AJAX 处理器
         add_action('wp_ajax_lsky_pro_process_media_batch', array($this, 'handle_ajax'));
         add_action('wp_ajax_lsky_pro_process_post_batch', array($this, 'handle_ajax'));
+        add_action('wp_ajax_lsky_pro_reset_post_batch', array($this, 'handle_reset_post_batch'));
+        add_action('wp_ajax_lsky_pro_reset_media_batch', array($this, 'handle_reset_media_batch'));
+    }
+
+    /**
+     * 重置媒体库批处理进度（清理图床 URL/PhotoId 记录）
+     *
+     * 注意：这会导致下次批处理重新上传这些图片，可能在图床产生重复图片。
+     */
+    public function handle_reset_media_batch() {
+        check_ajax_referer('lsky_pro_batch', 'nonce');
+
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(array('message' => '权限不足'));
+        }
+
+        global $wpdb;
+
+        $meta_keys = array('_lsky_pro_url', '_lsky_pro_photo_id');
+        $placeholders = implode(',', array_fill(0, count($meta_keys), '%s'));
+
+        $sql = "DELETE pm
+                FROM {$wpdb->postmeta} pm
+                INNER JOIN {$wpdb->posts} p ON pm.post_id = p.ID
+                WHERE p.post_type = 'attachment'
+                  AND p.post_mime_type LIKE 'image/%'
+                  AND pm.meta_key IN ($placeholders)";
+
+        $deleted = $wpdb->query($wpdb->prepare($sql, $meta_keys));
+
+        if ($deleted === false) {
+            wp_send_json_error(array('message' => '重置失败'));
+        }
+
+        wp_send_json_success(array(
+            'deleted' => (int) $deleted,
+            'message' => sprintf('已重置媒体库批处理进度（清理 %d 条图床记录）', (int) $deleted),
+        ));
+    }
+
+    /**
+     * 重置文章批处理进度（清理完成标记）
+     */
+    public function handle_reset_post_batch() {
+        check_ajax_referer('lsky_pro_batch', 'nonce');
+
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(array('message' => '权限不足'));
+        }
+
+        global $wpdb;
+
+        // 仅清理文章/页面的“批处理完成”标记；不会删除图床 URL，也不会改动媒体库附件。
+        $deleted = $wpdb->query(
+            $wpdb->prepare(
+                "DELETE pm
+                 FROM {$wpdb->postmeta} pm
+                 INNER JOIN {$wpdb->posts} p ON pm.post_id = p.ID
+                 WHERE pm.meta_key = %s
+                   AND p.post_type IN ('post','page')",
+                $this->post_done_meta_key
+            )
+        );
+
+        if ($deleted === false) {
+            wp_send_json_error(array('message' => '重置失败'));
+        }
+
+        wp_send_json_success(array(
+            'deleted' => (int) $deleted,
+            'message' => sprintf('已重置文章批处理进度（清理 %d 条进度记录）', (int) $deleted),
+        ));
     }
     
     /**
@@ -70,29 +147,40 @@ class LskyProBatch {
      */
     private function process_media_batch() {
         global $wpdb;
-        
+
+        // 总数：媒体库中所有图片附件
+        $total = (int) $wpdb->get_var(
+            "SELECT COUNT(*) FROM {$wpdb->posts} 
+             WHERE post_type = 'attachment' 
+               AND post_mime_type LIKE 'image/%'"
+        );
+
+        // 仅选择“仍需处理”的附件：未上传到图床、未被标记为头像/限制/跳过
+        $base_sql = "
+            FROM {$wpdb->posts} p
+            LEFT JOIN {$wpdb->postmeta} pm ON p.ID = pm.post_id AND pm.meta_key = '_lsky_pro_url'
+            LEFT JOIN {$wpdb->postmeta} av ON p.ID = av.post_id AND av.meta_key = %s
+            LEFT JOIN {$wpdb->postmeta} sk ON p.ID = sk.post_id AND sk.meta_key = %s
+            LEFT JOIN {$wpdb->postmeta} tp ON p.ID = tp.post_id AND tp.meta_key = %s
+            WHERE p.post_type = 'attachment'
+              AND p.post_mime_type LIKE 'image/%'
+              AND (pm.meta_value IS NULL OR pm.meta_value = '')
+              AND (av.meta_value IS NULL OR av.meta_value = '' OR av.meta_value = '0')
+              AND (sk.meta_value IS NULL OR sk.meta_value = '' OR sk.meta_value = '0')
+              AND (tp.meta_value IS NULL OR tp.meta_value = '' OR tp.meta_value = '0')
+        ";
+
         $attachments = $wpdb->get_results(
             $wpdb->prepare(
                 "SELECT p.ID, p.guid, pm.meta_value as lsky_url, av.meta_value as is_avatar, sk.meta_value as batch_skip, tp.meta_value as lsky_type
-                FROM {$wpdb->posts} p
-                LEFT JOIN {$wpdb->postmeta} pm ON p.ID = pm.post_id AND pm.meta_key = '_lsky_pro_url'
-                LEFT JOIN {$wpdb->postmeta} av ON p.ID = av.post_id AND av.meta_key = %s
-                LEFT JOIN {$wpdb->postmeta} sk ON p.ID = sk.post_id AND sk.meta_key = %s
-                LEFT JOIN {$wpdb->postmeta} tp ON p.ID = tp.post_id AND tp.meta_key = %s
-                WHERE p.post_type = 'attachment'
-                AND p.post_mime_type LIKE 'image/%'
-                LIMIT %d",
+                 {$base_sql}
+                 ORDER BY p.ID ASC
+                 LIMIT %d",
                 $this->avatar_meta_key,
                 $this->batch_skip_meta_key,
                 $this->type_meta_key,
                 $this->batch_size
             )
-        );
-        
-        $total = $wpdb->get_var(
-            "SELECT COUNT(*) FROM {$wpdb->posts} 
-            WHERE post_type = 'attachment' 
-            AND post_mime_type LIKE 'image/%'"
         );
         
         $processed_items = array();
@@ -240,19 +328,34 @@ class LskyProBatch {
                 }
             }
         }
-        
+
+        $remaining_after = (int) $wpdb->get_var(
+            $wpdb->prepare(
+                "SELECT COUNT(DISTINCT p.ID) {$base_sql}",
+                $this->avatar_meta_key,
+                $this->batch_skip_meta_key,
+                $this->type_meta_key
+            )
+        );
+
+        $processed_overall = max(0, $total - $remaining_after);
+        $completed = ($remaining_after === 0);
+
         return array(
-            'processed' => $this->processed,
+            // 为兼容前端进度条，这里返回“累计已完成数量”而不是“本次处理数量”
+            'processed' => $processed_overall,
             'success' => $this->success,
             'failed' => $this->failed,
             'total' => $total,
-            'completed' => count($attachments) < $this->batch_size,
+            'completed' => $completed,
             'processed_items' => $processed_items,
             'message' => sprintf(
-                '已处理 %d 张图片，成功 %d 张，失败 %d 张',
+                '本次处理 %d 张图片，成功 %d 张，失败 %d 张（累计完成 %d/%d）',
                 $this->processed,
                 $this->success,
-                $this->failed
+                $this->failed,
+                $processed_overall,
+                $total
             )
         );
     }
@@ -363,37 +466,49 @@ class LskyProBatch {
      */
     private function process_batch() {
         global $wpdb;
-        
+
+        // 计算文章总数（含图片）与剩余未完成数（用于断点续跑进度）
+        $total = (int) $wpdb->get_var(
+            "SELECT COUNT(*) 
+             FROM {$wpdb->posts} 
+             WHERE post_type IN ('post', 'page') 
+               AND post_status = 'publish' 
+               AND post_content LIKE '%<img%'"
+        );
+
         $posts = $wpdb->get_results(
             $wpdb->prepare(
-                "SELECT ID, post_content, post_title 
-                FROM {$wpdb->posts} 
-                WHERE post_type IN ('post', 'page') 
-                AND post_status = 'publish' 
-                AND post_content LIKE '%<img%'
-                LIMIT %d",
+                "SELECT p.ID, p.post_content, p.post_title
+                 FROM {$wpdb->posts} p
+                 LEFT JOIN {$wpdb->postmeta} dm ON p.ID = dm.post_id AND dm.meta_key = %s
+                 WHERE p.post_type IN ('post', 'page')
+                   AND p.post_status = 'publish'
+                   AND p.post_content LIKE '%<img%'
+                   AND (dm.meta_value IS NULL OR dm.meta_value = '' OR dm.meta_value = '0')
+                 ORDER BY p.ID ASC
+                 LIMIT %d",
+                $this->post_done_meta_key,
                 $this->batch_size
             )
         );
-        
-        $total = $wpdb->get_var(
-            "SELECT COUNT(*) 
-            FROM {$wpdb->posts} 
-            WHERE post_type IN ('post', 'page') 
-            AND post_status = 'publish' 
-            AND post_content LIKE '%<img%'"
-        );
-        
+
         $processed_items = array();
         foreach ($posts as $post) {
             $this->processed++;
             $content = $post->post_content;
             $pattern = '/<img[^>]+src=([\'\"])((?:http|https):\/\/[^>]+?)\1[^>]*>/i';
+
+            $options = get_option('lsky_pro_options');
+            $api_url = is_array($options) && isset($options['lsky_pro_api_url']) ? (string) $options['lsky_pro_api_url'] : '';
+            $lsky_host = $api_url !== '' ? (string) parse_url($api_url, PHP_URL_HOST) : '';
+
+            $all_images_already_lsky = true;
+            $had_failure = false;
             
             if (preg_match_all($pattern, $content, $matches)) {
                 foreach ($matches[2] as $url) {
                     // 检查是否已经是图床URL
-                    if (strpos($url, parse_url(get_option('lsky_pro_options')['lsky_pro_api_url'], PHP_URL_HOST)) !== false) {
+                    if ($lsky_host !== '' && strpos($url, $lsky_host) !== false) {
                         $processed_items[] = array(
                             'success' => true,
                             'original' => $url,
@@ -402,11 +517,14 @@ class LskyProBatch {
                         );
                         continue;
                     }
+
+                    $all_images_already_lsky = false;
                     
                     try {
                         $temp_file = $this->download_remote_image($url);
                         if (!$temp_file) {
                             $this->failed++;
+                            $had_failure = true;
                             $processed_items[] = array(
                                 'success' => false,
                                 'original' => $url,
@@ -428,6 +546,7 @@ class LskyProBatch {
                             );
                         } else {
                             $this->failed++;
+                            $had_failure = true;
                             $processed_items[] = array(
                                 'success' => false,
                                 'original' => $url,
@@ -439,6 +558,7 @@ class LskyProBatch {
                         @unlink($temp_file);
                     } catch (Exception $e) {
                         $this->failed++;
+                        $had_failure = true;
                         $processed_items[] = array(
                             'success' => false,
                             'original' => $url,
@@ -455,20 +575,47 @@ class LskyProBatch {
                     'post_content' => $content
                 ));
             }
+
+            // 若该文章已不存在非图床图片（或全部替换成功），标记为完成，避免下次从头重复处理
+            if (!$had_failure) {
+                // 注意：即使一开始就全是图床图片，也应标记为完成
+                if ($all_images_already_lsky || ($content !== $post->post_content)) {
+                    update_post_meta($post->ID, $this->post_done_meta_key, 1);
+                }
+            }
         }
-        
+
+        $remaining_after = (int) $wpdb->get_var(
+            $wpdb->prepare(
+                "SELECT COUNT(DISTINCT p.ID)
+                 FROM {$wpdb->posts} p
+                 LEFT JOIN {$wpdb->postmeta} dm ON p.ID = dm.post_id AND dm.meta_key = %s
+                 WHERE p.post_type IN ('post', 'page')
+                   AND p.post_status = 'publish'
+                   AND p.post_content LIKE '%<img%'
+                   AND (dm.meta_value IS NULL OR dm.meta_value = '' OR dm.meta_value = '0')",
+                $this->post_done_meta_key
+            )
+        );
+
+        $processed_overall = max(0, $total - $remaining_after);
+        $completed = ($remaining_after === 0);
+
         return array(
-            'processed' => $this->processed,
+            // 为兼容前端进度条，这里返回“累计已完成文章数”
+            'processed' => $processed_overall,
             'success' => $this->success,
             'failed' => $this->failed,
             'total' => $total,
-            'completed' => count($posts) < $this->batch_size,
+            'completed' => $completed,
             'processed_items' => $processed_items,
             'message' => sprintf(
-                '已处理 %d 篇文章中的图片，成功 %d 张，失败 %d 张',
+                '本次处理 %d 篇文章，成功 %d 张，失败 %d 张（累计完成 %d/%d）',
                 $this->processed,
                 $this->success,
-                $this->failed
+                $this->failed,
+                $processed_overall,
+                $total
             )
         );
     }
