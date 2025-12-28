@@ -18,6 +18,41 @@ class LskyProRemote {
      * 处理文章内容中的远程图片
      */
     public function process_post_images($post_id) {
+        // 尽量避免因处理时间过长导致中途超时。
+        if (function_exists('set_time_limit')) {
+            @set_time_limit(0);
+        }
+
+        $post_id = (int) $post_id;
+        if ($post_id <= 0) {
+            $this->error = '无效的文章ID';
+            return false;
+        }
+
+        // Post 级锁：避免 save_post/wp_update_post 递归触发或并发重复处理。
+        $lock_meta_key = '_lsky_pro_remote_processing_lock';
+        $lock_ttl_seconds = 10 * 60;
+        $now = time();
+        $existing_lock = get_post_meta($post_id, $lock_meta_key, true);
+        if (is_numeric($existing_lock)) {
+            $existing_lock = (int) $existing_lock;
+            if ($existing_lock > 0 && ($now - $existing_lock) < $lock_ttl_seconds) {
+                $this->error = '文章正在处理远程图片，请稍后重试';
+                error_log("LskyPro: 文章 {$post_id} 正在处理中，跳过本次处理");
+                return false;
+            }
+        }
+
+        // 清理过期锁并尝试加锁。
+        delete_post_meta($post_id, $lock_meta_key);
+        if (!add_post_meta($post_id, $lock_meta_key, (string) $now, true)) {
+            // 可能存在并发竞争；再次读取确认。
+            $this->error = '文章正在处理远程图片，请稍后重试';
+            error_log("LskyPro: 文章 {$post_id} 加锁失败，可能并发处理中");
+            return false;
+        }
+
+        try {
         $content = get_post_field('post_content', $post_id);
         if (empty($content)) {
             $this->error = '文章内容为空';
@@ -36,6 +71,11 @@ class LskyProRemote {
         
         // 获取已处理的图片URL映射
         $processed_urls = get_post_meta($post_id, '_lsky_pro_processed_urls', true) ?: array();
+
+        // 增量持久化映射：避免中途超时导致“已上传但未落库”，重试重复上传。
+        $persist_processed_urls = function() use ($post_id, &$processed_urls) {
+            update_post_meta($post_id, '_lsky_pro_processed_urls', $processed_urls);
+        };
         
         if (preg_match_all($pattern, $content, $matches)) {
             error_log("LskyPro: 在文章 {$post_id} 中找到 " . count($matches[2]) . " 个图片");
@@ -70,6 +110,7 @@ class LskyProRemote {
                         error_log("LskyPro: 本站媒体图片上传成功，新URL: {$new_url}");
                         $content = str_replace($url, $new_url, $content);
                         $processed_urls[$url_clean] = $new_url;
+                        $persist_processed_urls();
                         $this->processed++;
                         $updated = true;
                     } else {
@@ -90,6 +131,7 @@ class LskyProRemote {
                         error_log("LskyPro: 图片上传成功，新URL: {$new_url}");
                         $content = str_replace($url, $new_url, $content);
                         $processed_urls[$url_clean] = $new_url; // 保存URL映射关系
+                        $persist_processed_urls();
                         $this->processed++;
                         $updated = true;
                     } else {
@@ -99,6 +141,7 @@ class LskyProRemote {
                 } else {
                     error_log("LskyPro: 跳过本站或图床图片: {$url}");
                     $processed_urls[$url_clean] = $url;
+                    $persist_processed_urls();
                 }
             }
         } else {
@@ -114,14 +157,16 @@ class LskyProRemote {
                 'ID' => $post_id,
                 'post_content' => $content
             ));
-            
-            // 保存URL映射关系
-            update_post_meta($post_id, '_lsky_pro_processed_urls', $processed_urls);
-            
+
             error_log("LskyPro: 文章处理完成 - 成功: {$this->processed}, 失败: {$this->failed}");
         }
         
         return true;
+
+        } finally {
+            // 无论成功/失败都释放锁，避免阻塞后续处理。
+            delete_post_meta($post_id, $lock_meta_key);
+        }
     }
 
     /**
@@ -133,6 +178,13 @@ class LskyProRemote {
 
         if (is_numeric($attachment_id) && (int) $attachment_id > 0) {
             $attachment_id = (int) $attachment_id;
+
+            // 若附件已上传过图床，直接复用，避免重复上传。
+            $existing_url = get_post_meta($attachment_id, '_lsky_pro_url', true);
+            if (is_string($existing_url) && $existing_url !== '') {
+                return $existing_url;
+            }
+
             $file_path = get_attached_file($attachment_id);
         }
 
