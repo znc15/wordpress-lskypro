@@ -54,7 +54,9 @@ if (!trait_exists('LskyProBatch_Reset', false)) {
 
             global $wpdb;
 
-            $meta_keys = array('_lsky_pro_url', '_lsky_pro_photo_id');
+            // 安全默认：不要删除 _lsky_pro_url，避免在本地文件已删除/不可用时立刻造成断链。
+            // 仅清理 photo_id 以便重新绑定/重新获取；若确实需要强制重传，应在 UI/接口层做显式确认后再实现。
+            $meta_keys = array('_lsky_pro_photo_id');
             $placeholders = implode(',', array_fill(0, count($meta_keys), '%s'));
 
             $sql = "DELETE pm
@@ -72,7 +74,7 @@ if (!trait_exists('LskyProBatch_Reset', false)) {
 
             wp_send_json_success(array(
                 'deleted' => (int) $deleted,
-                'message' => sprintf('已重置媒体库批处理进度（清理 %d 条图床记录）', (int) $deleted),
+                'message' => sprintf('已重置媒体库批处理进度（清理 %d 条 PhotoId 记录）', (int) $deleted),
             ));
         }
     }

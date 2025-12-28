@@ -43,6 +43,19 @@ class LskyProUploadHandler {
         return 'lsky_pro_uploaded_photo_id_' . md5((string) $image_url);
     }
 
+    private function normalize_file_path(string $path): string {
+        $p = $path;
+        if (function_exists('wp_normalize_path')) {
+            $p = wp_normalize_path($p);
+        }
+        return $p;
+    }
+
+    private function get_pending_upload_transient_key(string $local_file_path): string {
+        $p = $this->normalize_file_path(trim($local_file_path));
+        return 'lsky_pro_pending_upload_' . md5($p);
+    }
+
     /**
      * 处理文件上传
      */
@@ -92,20 +105,22 @@ class LskyProUploadHandler {
                 $this->debug_log('upload success: ' . $image_url);
 
                 $photo_id = $uploader->getLastUploadedPhotoId();
+                $pending = array(
+                    'url' => (string) $image_url,
+                    'photo_id' => null,
+                    'created_at' => time(),
+                );
+
                 if (is_numeric($photo_id)) {
                     $photo_id = (int) $photo_id;
                     if ($photo_id > 0) {
-                        set_transient($this->get_uploaded_photo_id_transient_key($image_url), $photo_id, 2 * HOUR_IN_SECONDS);
+                        $pending['photo_id'] = $photo_id;
                     }
                 }
 
-                $file_array['url'] = $image_url;
-                $file_array['file'] = $image_url;
-
-                if (file_exists($local_file_path)) {
-                    @unlink($local_file_path);
-                    $this->debug_log('deleted local file: ' . $local_file_path);
-                }
+                // 不改写 WordPress 的本地文件路径字段，避免影响附件元数据生成与特色图渲染。
+                // 在尚未拿到 attachment_id 的阶段，用本地绝对路径作为 key 暂存图床信息。
+                set_transient($this->get_pending_upload_transient_key($local_file_path), $pending, 2 * HOUR_IN_SECONDS);
 
                 do_action('lsky_pro_upload_success', $image_url);
 
@@ -159,19 +174,49 @@ class LskyProUploadHandler {
             lsky_pro_apply_pending_exclusion_for_attachment((int) $attachment_id);
         }
 
+        // 优先从“按本地路径暂存”的上传结果落库，避免依赖 _wp_attached_file 的字符串形态。
+        $attached_file_path = function_exists('get_attached_file') ? (string) get_attached_file((int) $attachment_id) : '';
+        if ($attached_file_path !== '' && function_exists('get_transient')) {
+            $pending_key = $this->get_pending_upload_transient_key($attached_file_path);
+            $pending = get_transient($pending_key);
+            if (is_array($pending)) {
+                $new_url = isset($pending['url']) ? trim((string) $pending['url']) : '';
+                if ($new_url !== '') {
+                    update_post_meta($attachment_id, '_lsky_pro_url', $new_url);
+                }
+
+                $photo_id = isset($pending['photo_id']) ? $pending['photo_id'] : null;
+                if (is_numeric($photo_id)) {
+                    $photo_id = (int) $photo_id;
+                    if ($photo_id > 0) {
+                        update_post_meta($attachment_id, '_lsky_pro_photo_id', $photo_id);
+                    }
+                }
+
+                if (function_exists('delete_transient')) {
+                    delete_transient($pending_key);
+                }
+
+                return $metadata;
+            }
+        }
+
+        // 兼容旧逻辑：若某些历史版本/外部逻辑把 _wp_attached_file 写成了 URL，仍按 URL 回填。
         $file = (string) get_post_meta($attachment_id, '_wp_attached_file', true);
         if ($file !== '' && strpos($file, 'http') === 0) {
             update_post_meta($attachment_id, '_lsky_pro_url', $file);
 
             $key = $this->get_uploaded_photo_id_transient_key($file);
-            $photo_id = get_transient($key);
+            $photo_id = function_exists('get_transient') ? get_transient($key) : false;
             if (is_numeric($photo_id)) {
                 $photo_id = (int) $photo_id;
                 if ($photo_id > 0) {
                     update_post_meta($attachment_id, '_lsky_pro_photo_id', $photo_id);
                 }
             }
-            delete_transient($key);
+            if (function_exists('delete_transient')) {
+                delete_transient($key);
+            }
         }
         return $metadata;
     }
