@@ -17,6 +17,7 @@ class LskyProSetup2 {
         add_action('lsky_pro_test_cron_event', array($this, 'handle_test_cron_event'));
         add_action('lsky_pro_cron_task', array($this, 'handle_cron_run'));
         add_action('wp_ajax_lsky_pro_save_cron_password', array($this, 'handle_save_cron_password'));
+        add_action('wp_ajax_lsky_pro_get_cron_logs', array($this, 'handle_get_cron_logs'));
     }
 
     public function add_setup_2_page() {
@@ -318,6 +319,55 @@ class LskyProSetup2 {
         } else {
             wp_send_json_error(array('message' => '密码保存失败'));
         }
+    }
+
+    public function handle_get_cron_logs() {
+        if (!check_ajax_referer('lsky_pro_cron_logs', 'nonce', false)) {
+            wp_send_json_error(array('message' => '安全验证失败'));
+            return;
+        }
+
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(array('message' => '权限不足'));
+            return;
+        }
+
+        $log_file = WP_CONTENT_DIR . '/lsky-pro-cron.log';
+        if (!file_exists($log_file)) {
+            wp_send_json_success(array('logs' => array()));
+            return;
+        }
+
+        $lines = @file($log_file, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+        if (!is_array($lines)) {
+            wp_send_json_error(array('message' => '读取日志失败'));
+            return;
+        }
+
+        $lines = array_slice($lines, -50);
+        $logs = array();
+
+        foreach ($lines as $line) {
+            $line = trim((string) $line);
+            if ($line === '') {
+                continue;
+            }
+
+            $time = '';
+            $message = $line;
+
+            if (preg_match('/^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\s*-\s*(.+)$/', $line, $m)) {
+                $time = $m[1];
+                $message = $m[2];
+            }
+
+            $logs[] = array(
+                'time' => $time,
+                'message' => $message,
+            );
+        }
+
+        wp_send_json_success(array('logs' => $logs));
     }
 }
 

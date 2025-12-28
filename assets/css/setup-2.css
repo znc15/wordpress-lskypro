@@ -1,11 +1,11 @@
 /* 全局样式优化 */
-body {
+body.admin_page_lsky-pro-setup-2 {
     background-color: #f0f2f5;
     color: #333;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
 }
 
-[v-cloak] {
+body.admin_page_lsky-pro-setup-2 [v-cloak] {
     display: none;
 }
 
@@ -289,7 +289,7 @@ body {
     margin: 30px 0 20px;
 }
 
-h3 {
+body.admin_page_lsky-pro-setup-2 .lsky-setup-container h3 {
     display: flex;
     align-items: center;
     font-size: 18px;
@@ -297,7 +297,7 @@ h3 {
     margin-bottom: 15px;
 }
 
-h3 .dashicons {
+body.admin_page_lsky-pro-setup-2 .lsky-setup-container h3 .dashicons {
     margin-right: 10px;
     color: #2271b1;
 }
@@ -770,22 +770,22 @@ h3 .dashicons {
 }
 
 /* 美化滚动条 */
-::-webkit-scrollbar {
+body.admin_page_lsky-pro-setup-2 ::-webkit-scrollbar {
     width: 8px;
     height: 8px;
 }
 
-::-webkit-scrollbar-track {
+body.admin_page_lsky-pro-setup-2 ::-webkit-scrollbar-track {
     background: #f1f1f1;
     border-radius: 4px;
 }
 
-::-webkit-scrollbar-thumb {
+body.admin_page_lsky-pro-setup-2 ::-webkit-scrollbar-thumb {
     background: #c1c1c1;
     border-radius: 4px;
 }
 
-::-webkit-scrollbar-thumb:hover {
+body.admin_page_lsky-pro-setup-2 ::-webkit-scrollbar-thumb:hover {
     background: #a8a8a8;
 }
 
@@ -960,4 +960,250 @@ h3 .dashicons {
     padding-left: 15px; /* 为文本添加左侧空间 */
     width: 100%;
     white-space: nowrap;
-} 
+}
+
+/* ===== setup-2.php 当前结构样式（以页面为作用域，避免污染后台其他页） ===== */
+body.admin_page_lsky-pro-setup-2 .lsky-setup-container {
+    margin: 28px auto;
+}
+
+body.admin_page_lsky-pro-setup-2 .password-form {
+    margin-top: 8px;
+}
+
+body.admin_page_lsky-pro-setup-2 .password-input-group {
+    display: flex;
+    align-items: stretch;
+    width: 100%;
+    max-width: 520px;
+}
+
+body.admin_page_lsky-pro-setup-2 .password-input {
+    flex: 1;
+    height: 46px;
+    padding: 12px 14px;
+    border: 1px solid #dcdfe6;
+    border-right: 0;
+    border-radius: 8px 0 0 8px;
+    background-color: #fff;
+    font-size: 14px;
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+body.admin_page_lsky-pro-setup-2 .password-input:focus {
+    outline: none;
+}
+
+body.admin_page_lsky-pro-setup-2 .password-input-group:focus-within .password-input,
+body.admin_page_lsky-pro-setup-2 .password-input-group:focus-within .toggle-password {
+    border-color: #2271b1;
+    box-shadow: 0 0 0 2px rgba(34, 113, 177, 0.1);
+}
+
+body.admin_page_lsky-pro-setup-2 .toggle-password {
+    width: 46px;
+    border: 1px solid #dcdfe6;
+    border-radius: 0 8px 8px 0;
+    background: #fff;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+}
+
+body.admin_page_lsky-pro-setup-2 .toggle-password .dashicons {
+    color: #646970;
+}
+
+body.admin_page_lsky-pro-setup-2 .toggle-password:hover .dashicons {
+    color: #2271b1;
+}
+
+body.admin_page_lsky-pro-setup-2 .password-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: 12px;
+    flex-wrap: wrap;
+}
+
+body.admin_page_lsky-pro-setup-2 .password-status {
+    color: #4caf50;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+}
+
+body.admin_page_lsky-pro-setup-2 .password-error {
+    margin-top: 10px;
+    padding: 10px 12px;
+    border-left: 4px solid #f44336;
+    background: rgba(244, 67, 54, 0.06);
+    color: #b71c1c;
+    border-radius: 8px;
+    max-width: 520px;
+}
+
+body.admin_page_lsky-pro-setup-2 .command-box {
+    display: flex;
+    align-items: stretch;
+    gap: 12px;
+    padding: 12px;
+    border-radius: 12px;
+    border: 1px solid rgba(0, 0, 0, 0.05);
+    background: #f9fafb;
+}
+
+body.admin_page_lsky-pro-setup-2 .command-box .command-text {
+    flex: 1;
+    padding: 10px 12px;
+    border-radius: 10px;
+    border: 1px solid #dcdfe6;
+    background: #fff;
+    display: block;
+    overflow-x: auto;
+    white-space: nowrap;
+    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+}
+
+body.admin_page_lsky-pro-setup-2 .copy-button {
+    height: 46px;
+    padding: 0 18px;
+    border-radius: 10px;
+    border: none;
+    color: #fff;
+    background: linear-gradient(135deg, #2271b1 0%, #135e96 100%);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    box-shadow: 0 4px 12px rgba(34, 113, 177, 0.2);
+    transition: all 0.2s ease;
+    white-space: nowrap;
+}
+
+body.admin_page_lsky-pro-setup-2 .copy-button:hover {
+    background: linear-gradient(135deg, #135e96 0%, #0a4b78 100%);
+    transform: translateY(-1px);
+    box-shadow: 0 6px 16px rgba(34, 113, 177, 0.3);
+}
+
+body.admin_page_lsky-pro-setup-2 .copy-button:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 8px rgba(34, 113, 177, 0.2);
+}
+
+body.admin_page_lsky-pro-setup-2 .setup-steps {
+    margin-top: 16px;
+    color: #3c434a;
+}
+
+body.admin_page_lsky-pro-setup-2 .setup-steps h4 {
+    margin: 0 0 8px;
+    font-size: 14px;
+    font-weight: 600;
+    color: #1d2327;
+}
+
+body.admin_page_lsky-pro-setup-2 .setup-steps ol {
+    margin: 0;
+    padding-left: 18px;
+}
+
+body.admin_page_lsky-pro-setup-2 .setup-steps li {
+    margin: 6px 0;
+}
+
+body.admin_page_lsky-pro-setup-2 .status-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 14px 16px;
+    border-radius: 12px;
+    border: 1px solid rgba(0, 0, 0, 0.05);
+    background: #fff;
+}
+
+body.admin_page_lsky-pro-setup-2 .status-info p {
+    margin: 0;
+}
+
+body.admin_page_lsky-pro-setup-2 .status-result {
+    margin-top: 12px;
+    padding: 12px 14px;
+    border-radius: 10px;
+    white-space: pre-line;
+    border-left: 4px solid #dcdfe6;
+    background: #f9fafb;
+    color: #1d2327;
+}
+
+body.admin_page_lsky-pro-setup-2 .status-result.success {
+    border-left-color: #4caf50;
+    background: rgba(76, 175, 80, 0.08);
+}
+
+body.admin_page_lsky-pro-setup-2 .status-result.error {
+    border-left-color: #f44336;
+    background: rgba(244, 67, 54, 0.06);
+}
+
+body.admin_page_lsky-pro-setup-2 .logs-section .button {
+    margin-bottom: 10px;
+}
+
+body.admin_page_lsky-pro-setup-2 .logs-container {
+    border: 1px solid rgba(0, 0, 0, 0.06);
+    border-radius: 12px;
+    background: #fff;
+    max-height: 280px;
+    overflow: auto;
+}
+
+body.admin_page_lsky-pro-setup-2 .log-item {
+    display: flex;
+    gap: 10px;
+    padding: 10px 12px;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+body.admin_page_lsky-pro-setup-2 .log-item:last-child {
+    border-bottom: none;
+}
+
+body.admin_page_lsky-pro-setup-2 .log-time {
+    color: #646970;
+    white-space: nowrap;
+    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+    font-size: 12px;
+}
+
+body.admin_page_lsky-pro-setup-2 .log-message {
+    color: #1d2327;
+    word-break: break-word;
+}
+
+body.admin_page_lsky-pro-setup-2 .no-logs {
+    margin: 8px 0 0;
+    color: #646970;
+}
+
+@media (max-width: 782px) {
+    body.admin_page_lsky-pro-setup-2 .command-box {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    body.admin_page_lsky-pro-setup-2 .copy-button {
+        width: 100%;
+        justify-content: center;
+    }
+
+    body.admin_page_lsky-pro-setup-2 .status-card {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+}
