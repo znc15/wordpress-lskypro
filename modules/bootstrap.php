@@ -44,6 +44,7 @@ lsky_pro_force_migrate_options_to_v2();
 
 // 加载所有必需的类文件
 require_once LSKY_PRO_PLUGIN_DIR . 'includes/uploader.php';
+require_once LSKY_PRO_PLUGIN_DIR . 'includes/upload-exclusions.php';
 require_once LSKY_PRO_PLUGIN_DIR . 'includes/remote.php';
 require_once LSKY_PRO_PLUGIN_DIR . 'includes/upload-handler.php';
 require_once LSKY_PRO_PLUGIN_DIR . 'includes/post-handler.php';

@@ -93,6 +93,35 @@ class LskyProBatch {
             $file = get_attached_file($attachment->ID);
             if ($file && file_exists($file)) {
                 try {
+                    if (function_exists('lsky_pro_should_upload_to_lsky')) {
+                        $should_upload = lsky_pro_should_upload_to_lsky(
+                            array(
+                                'file_path' => (string) $file,
+                                'mime_type' => '',
+                                'attachment_id' => (int) $attachment->ID,
+                                'source' => 'media_batch',
+                            ),
+                            array(
+                                'doing_ajax' => function_exists('wp_doing_ajax') ? wp_doing_ajax() : false,
+                                'action' => isset($_REQUEST['action']) ? sanitize_key((string) $_REQUEST['action']) : '',
+                                'context' => isset($_REQUEST['context']) ? sanitize_key((string) $_REQUEST['context']) : '',
+                                'referer' => function_exists('wp_get_referer') ? (string) wp_get_referer() : '',
+                                'request_uri' => isset($_SERVER['REQUEST_URI']) ? (string) $_SERVER['REQUEST_URI'] : '',
+                            )
+                        );
+
+                        if (!$should_upload) {
+                            $this->success++;
+                            $processed_items[] = array(
+                                'success' => true,
+                                'original' => basename($file),
+                                'new_url' => '',
+                                'status' => 'excluded'
+                            );
+                            continue;
+                        }
+                    }
+
                     $new_url = $this->uploader->upload($file);
                     if ($new_url) {
                         update_post_meta($attachment->ID, '_lsky_pro_url', $new_url);

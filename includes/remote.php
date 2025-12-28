@@ -205,6 +205,30 @@ class LskyProRemote {
             return false;
         }
 
+        // 复用上传排除规则：例如头像/站点图标应保持本地链接。
+        if (function_exists('lsky_pro_should_upload_to_lsky')) {
+            $should_upload = lsky_pro_should_upload_to_lsky(
+                array(
+                    'file_path' => $file_path,
+                    'mime_type' => '',
+                    'attachment_id' => (isset($attachment_id) && is_int($attachment_id) && $attachment_id > 0) ? $attachment_id : null,
+                    'source' => 'post_local_media',
+                ),
+                array(
+                    'doing_ajax' => function_exists('wp_doing_ajax') ? wp_doing_ajax() : false,
+                    'action' => isset($_REQUEST['action']) ? sanitize_key((string) $_REQUEST['action']) : '',
+                    'context' => isset($_REQUEST['context']) ? sanitize_key((string) $_REQUEST['context']) : '',
+                    'referer' => function_exists('wp_get_referer') ? (string) wp_get_referer() : '',
+                    'request_uri' => isset($_SERVER['REQUEST_URI']) ? (string) $_SERVER['REQUEST_URI'] : '',
+                )
+            );
+
+            if (!$should_upload) {
+                // 返回原 URL，表示“不替换为图床地址”。
+                return $url;
+            }
+        }
+
         $new_url = $this->uploader->upload($file_path);
         if (!$new_url) {
             $this->error = $this->uploader->getError();

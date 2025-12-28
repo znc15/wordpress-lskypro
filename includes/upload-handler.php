@@ -33,6 +33,31 @@ class LskyProUploadHandler {
         if (!preg_match('!^image/!', $file_array['type'])) {
             return $file_array;
         }
+
+        // 某些场景（例如站点图标、用户头像）必须保留本地文件与本地 URL。
+        // 命中排除规则时，直接跳过图床同步。
+        if (function_exists('lsky_pro_should_upload_to_lsky')) {
+            $should_upload = lsky_pro_should_upload_to_lsky(
+                array(
+                    'file_path' => isset($file_array['file']) ? (string) $file_array['file'] : '',
+                    'mime_type' => isset($file_array['type']) ? (string) $file_array['type'] : '',
+                    'attachment_id' => null,
+                    'source' => 'upload',
+                ),
+                array(
+                    'doing_ajax' => function_exists('wp_doing_ajax') ? wp_doing_ajax() : false,
+                    'action' => isset($_REQUEST['action']) ? sanitize_key((string) $_REQUEST['action']) : '',
+                    'context' => isset($_REQUEST['context']) ? sanitize_key((string) $_REQUEST['context']) : '',
+                    'referer' => function_exists('wp_get_referer') ? (string) wp_get_referer() : '',
+                    'request_uri' => isset($_SERVER['REQUEST_URI']) ? (string) $_SERVER['REQUEST_URI'] : '',
+                )
+            );
+
+            if (!$should_upload) {
+                error_log('LskyPro: 命中排除规则，跳过图床上传');
+                return $file_array;
+            }
+        }
         
         try {
             $uploader = new LskyProUploader();

@@ -12,6 +12,13 @@ function lsky_pro_default_options() {
         // 全局默认相册（0 表示不指定）
         'album_id' => '0',
         'process_remote_images' => 0,
+
+        // 上传排除：默认排除站点图标；头像/用户中心上传可按 action/referer 配置排除。
+        'exclude_site_icon' => 1,
+        // 一行一个关键字，命中（doing_ajax 且 action 包含关键字）则跳过图床上传。
+        'exclude_ajax_actions' => "avatar\n",
+        // 一行一个关键字，命中 referer 则跳过图床上传（可选）。
+        'exclude_referer_contains' => '',
     );
 }
 
@@ -72,6 +79,23 @@ function lsky_pro_validate_settings($input) {
 
     // 复选框：未勾选时 WordPress 不会提交该键
     $clean['process_remote_images'] = (!empty($input['process_remote_images']) && (string) $input['process_remote_images'] === '1') ? 1 : 0;
+
+    // 上传排除
+    $clean['exclude_site_icon'] = (!empty($input['exclude_site_icon']) && (string) $input['exclude_site_icon'] === '1') ? 1 : 0;
+
+    $exclude_actions_raw = isset($input['exclude_ajax_actions']) ? (string) $input['exclude_ajax_actions'] : '';
+    $exclude_actions_raw = str_replace(array("\r\n", "\r"), "\n", $exclude_actions_raw);
+    $lines = array_filter(array_map('trim', explode("\n", $exclude_actions_raw)), function($v) {
+        return $v !== '';
+    });
+    $clean['exclude_ajax_actions'] = $lines ? implode("\n", $lines) . "\n" : '';
+
+    $exclude_referer_raw = isset($input['exclude_referer_contains']) ? (string) $input['exclude_referer_contains'] : '';
+    $exclude_referer_raw = str_replace(array("\r\n", "\r"), "\n", $exclude_referer_raw);
+    $lines = array_filter(array_map('trim', explode("\n", $exclude_referer_raw)), function($v) {
+        return $v !== '';
+    });
+    $clean['exclude_referer_contains'] = $lines ? implode("\n", $lines) . "\n" : '';
 
     // Cron 密码（如果有被提交）：只保存 hash 到独立 option
     if (!empty($input['cron_password'])) {
@@ -232,6 +256,21 @@ function lsky_pro_settings_init() {
             'id' => 'process_remote_images',
             'title' => '远程图片处理',
             'callback' => 'lsky_pro_process_remote_images_callback'
+        ),
+        array(
+            'id' => 'exclude_site_icon',
+            'title' => '排除站点图标',
+            'callback' => 'lsky_pro_exclude_site_icon_callback'
+        ),
+        array(
+            'id' => 'exclude_ajax_actions',
+            'title' => '排除头像上传（AJAX action）',
+            'callback' => 'lsky_pro_exclude_ajax_actions_callback'
+        ),
+        array(
+            'id' => 'exclude_referer_contains',
+            'title' => '排除头像上传（Referer 关键字）',
+            'callback' => 'lsky_pro_exclude_referer_contains_callback'
         )
     );
 
@@ -424,5 +463,51 @@ function lsky_pro_process_remote_images_callback() {
         <label class="form-check-label" for="lsky_pro_process_remote_images">自动处理文章中的远程图片</label>
     </div>
     <p class="description">保存文章时，自动将远程图片上传到图床。</p>
+    <?php
+}
+
+function lsky_pro_exclude_site_icon_callback() {
+    $options = lsky_pro_get_options_normalized();
+    ?>
+    <div class="form-check">
+        <input
+            class="form-check-input"
+            type='checkbox'
+            id="lsky_pro_exclude_site_icon"
+            name='lsky_pro_options[exclude_site_icon]'
+            value="1"
+            <?php checked(isset($options['exclude_site_icon']) && (int) $options['exclude_site_icon'] === 1); ?>
+        >
+        <label class="form-check-label" for="lsky_pro_exclude_site_icon">站点图标（Site Icon）不上传图床，保持本地文件</label>
+    </div>
+    <p class="description">建议开启：站点图标上传/裁剪流程通常依赖本地文件，上传图床并删除本地文件可能导致异常。</p>
+    <?php
+}
+
+function lsky_pro_exclude_ajax_actions_callback() {
+    $options = lsky_pro_get_options_normalized();
+    $value = isset($options['exclude_ajax_actions']) ? (string) $options['exclude_ajax_actions'] : '';
+    ?>
+    <textarea
+        class="form-control"
+        style="max-width: 520px; min-height: 90px;"
+        name="lsky_pro_options[exclude_ajax_actions]"
+        placeholder="avatar\n"
+    ><?php echo esc_textarea($value); ?></textarea>
+    <p class="description">一行一个关键字：当 <code>admin-ajax.php</code> 上传请求的 <code>action</code> 包含该关键字时，跳过图床上传。默认已包含 <code>avatar</code>。</p>
+    <?php
+}
+
+function lsky_pro_exclude_referer_contains_callback() {
+    $options = lsky_pro_get_options_normalized();
+    $value = isset($options['exclude_referer_contains']) ? (string) $options['exclude_referer_contains'] : '';
+    ?>
+    <textarea
+        class="form-control"
+        style="max-width: 520px; min-height: 90px;"
+        name="lsky_pro_options[exclude_referer_contains]"
+        placeholder="/user/\n/order\n"
+    ><?php echo esc_textarea($value); ?></textarea>
+    <p class="description">可选：一行一个关键字，若上传请求的 Referer URL 包含该关键字，则跳过图床上传。适合用户中心上传头像但 action 不含 avatar 的场景。</p>
     <?php
 }
