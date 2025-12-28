@@ -1,29 +1,4 @@
 <div id="lsky-batch-app">
-    <div class="lsky-batch-header mb-4">
-        <div class="d-flex flex-wrap align-items-center justify-content-between gap-3">
-            <div>
-                <div class="h6 mb-1">版本与更新</div>
-                <div class="text-muted small">当前版本：<strong id="current-version">—</strong></div>
-            </div>
-            <div id="version-status" class="d-flex align-items-center gap-2">
-                <span class="badge bg-secondary">检查中...</span>
-            </div>
-        </div>
-
-        <div id="update-info" class="mt-3">
-            <div class="alert alert-info mb-0">
-                <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
-                    <div>
-                        <div class="fw-semibold">更新说明</div>
-                        <div class="text-muted small">建议在低峰期更新</div>
-                    </div>
-                    <a href="#" id="download-link" class="btn btn-primary btn-sm" target="_blank" rel="noopener">下载更新</a>
-                </div>
-                <div id="release-notes" class="mt-2"></div>
-            </div>
-        </div>
-    </div>
-
     <div class="row g-4">
         <div class="col-12 col-lg-6">
             <div class="batch-section">

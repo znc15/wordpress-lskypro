@@ -1,22 +1,4 @@
-<p align="center">
-<img src="https://avatars.githubusercontent.com/u/100565733?s=200&v=4" width="150"/>
-</p>
-
-<h1 align="center">WordPress LskyPro</h1>
-
-<p align="center">
-  <a href="https://github.com/znc15/wordpress-lskypro?tab=Apache-2.0-1-ov-file">
-  <img src="https://img.shields.io/badge/Apache-2">
-  </a>
-
-  <a href="https://github.com/znc15/wordpress-lskypro">
-  <img src="https://img.shields.io/github/languages/code-size/znc15/wordpress-lskypro?color=blueviolet" />
-  </a>
-
-  <a href="https://github.com/znc15/wordpress-lskypro">
-  <img src="https://img.shields.io/github/v/release/znc15/wordpress-lskypro?include_prereleases&style=flat-square"/>
-  </a>
-</p>
+<h1 align="center">LskyPro For WordPress</h1>
 
 <p align="center">
   <img src="png/first.png" width="80%"/>
@@ -50,10 +32,8 @@ LskyPro For WordPress 是一个专为 WordPress 设计的图床插件，可以�
 
 1. 激活插件后，会自动跳转到设置向导
 2. 输入 LskyPro 图床的 API 地址 
-3. 选择账户类型（免费版或专业版）
-4. 如果选择免费版，需要输入用户名和密码 
-5. 如果选择专业版，需要输入 Token 
-6. 点击"保存配置"完成基础设置 
+3. 输入 Token 
+4. 点击"保存配置"完成基础设置 
 
 ### 计划任务配置 ⏱️
 
@@ -86,7 +66,7 @@ LskyPro For WordPress 是一个专为 WordPress 设计的图床插件，可以�
 ### 图片上传失败怎么办？
 
 - 检查 LskyPro 图床 API 地址是否正确 
-- 确认 Token 或用户名密码是否有效 
+- 确认 Token 是否有效 
 - 查看 WordPress 错误日志获取详细信息 
 
 ### 计划任务不工作怎么办？
@@ -99,15 +79,10 @@ LskyPro For WordPress 是一个专为 WordPress 设计的图床插件，可以�
 
 在插件设置页面的"设置"选项卡中，可以选择不同的存储策略。
 
-## 🆘 技术支持
-
-如有任何问题或建议，请访问 [GitHub 仓库](https://github.com/znc15/wordpress-lskypro/issues) 提交 Issue。 💬
-
 ## ©️ 版权信息
 
 - 作者：LittleSheep 
 - 作者网站：[https://www.littlesheep.cc](https://www.littlesheep.cc) 
 - 插件版本：1.0.0 
-- 许可证：Apache License 2.0
 
-感谢您使用 LskyPro For WordPress 插件！Ciallo～(∠・ω< )⌒★
+感谢您使用 LskyPro For WordPress 插件！

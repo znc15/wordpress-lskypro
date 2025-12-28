@@ -46,7 +46,7 @@ class LskyProSetup {
         }
         
         $api_url = rtrim(sanitize_url($_POST['api_url']), '/');
-        $account_type = sanitize_text_field($_POST['account_type']);
+        $token = sanitize_text_field($_POST['token'] ?? '');
         
         if (empty($api_url)) {
             add_settings_error(
@@ -71,143 +71,17 @@ class LskyProSetup {
         $options = array(
             'lsky_pro_api_url' => $api_url,
         );
-        
-        if ($account_type === 'paid') {
-            $token = sanitize_text_field($_POST['token']);
-            if (empty($token)) {
-                add_settings_error(
-                    'lsky_pro_setup',
-                    'token_error',
-                    '请输入 Token',
-                    'error'
-                );
-                return;
-            }
-            $options['lsky_pro_token'] = $token;
-        } else if ($account_type === 'free') {
-            $email = sanitize_email($_POST['email']);
-            $password = $_POST['password'];
-            
-            if (empty($email) || empty($password)) {
-                add_settings_error(
-                    'lsky_pro_setup',
-                    'credentials_error',
-                    '请输入邮箱和密码',
-                    'error'
-                );
-                return;
-            }
 
-            // 记录请求信息（不包含密码）
-            if (WP_DEBUG) {
-                error_log('LskyPro Token Request - API URL: ' . $api_url);
-                error_log('LskyPro Token Request - Email: ' . $email);
-            }
-
-            // 修改 API 路径，确保使用正确的 API 端点
-            $token_url = rtrim($api_url, '/') . '/tokens';
-            
-            $request_body = json_encode(array(
-                'email' => $email,
-                'password' => $password
-            ));
-
-            $response = wp_remote_post($token_url, array(
-                'headers' => array(
-                    'Accept' => 'application/json',
-                    'Content-Type' => 'application/json'
-                ),
-                'body' => $request_body,
-                'method' => 'POST',
-                'timeout' => 30
-            ));
-            
-            if (WP_DEBUG) {
-                error_log('LskyPro Token Request URL: ' . $token_url);
-            }
-            
-            if (is_wp_error($response)) {
-                add_settings_error(
-                    'lsky_pro_setup',
-                    'token_error',
-                    '获取 Token 失败：' . $response->get_error_message(),
-                    'error'
-                );
-                if (WP_DEBUG) {
-                    error_log('LskyPro Token Error: ' . $response->get_error_message());
-                }
-                return;
-            }
-            
-            $status_code = wp_remote_retrieve_response_code($response);
-            $body = wp_remote_retrieve_body($response);
-            
-            if (WP_DEBUG) {
-                error_log('LskyPro Response Status: ' . $status_code);
-                error_log('LskyPro Response Body: ' . $body);
-            }
-            
-            if ($status_code !== 200) {
-                add_settings_error(
-                    'lsky_pro_setup',
-                    'token_error',
-                    '获取 Token 失败：服务器返回状态码 ' . $status_code,
-                    'error'
-                );
-                return;
-            }
-            
-            $result = json_decode($body, true);
-            
-            if (json_last_error() !== JSON_ERROR_NONE) {
-                add_settings_error(
-                    'lsky_pro_setup',
-                    'token_error',
-                    '解析响应失败：' . json_last_error_msg(),
-                    'error'
-                );
-                return;
-            }
-            
-            if (!isset($result['status'])) {
-                add_settings_error(
-                    'lsky_pro_setup',
-                    'token_error',
-                    '获取 Token 失败：响应格式错误',
-                    'error'
-                );
-                if (WP_DEBUG) {
-                    error_log('LskyPro Invalid Response Format: ' . print_r($result, true));
-                }
-                return;
-            }
-            
-            if ($result['status'] !== 'success') {
-                $error_message = isset($result['message']) ? $result['message'] : '未知错误';
-                add_settings_error(
-                    'lsky_pro_setup',
-                    'token_error',
-                    '获取 Token 失败：' . $error_message,
-                    'error'
-                );
-                if (WP_DEBUG) {
-                    error_log('LskyPro Token Error Response: ' . print_r($result, true));
-                }
-                return;
-            }
-            
-            if (!isset($result['data']['token'])) {
-                add_settings_error(
-                    'lsky_pro_setup',
-                    'token_error',
-                    '获取 Token 失败：响应中没有 token',
-                    'error'
-                );
-                return;
-            }
-            
-            $options['lsky_pro_token'] = $result['data']['token'];
+        if (empty($token)) {
+            add_settings_error(
+                'lsky_pro_setup',
+                'token_error',
+                '请输入 Token',
+                'error'
+            );
+            return;
         }
+        $options['lsky_pro_token'] = $token;
         
         // 验证 Token
         $verify_response = wp_remote_get($api_url . '/user/profile', array(
@@ -322,17 +196,6 @@ class LskyProSetup {
                 <form id="lsky-pro-setup-form" class="mt-3" autocomplete="off">
                     <input type="hidden" id="lsky-pro-nonce" value="<?php echo esc_attr($nonce); ?>">
 
-                    <div class="lsky-pro-account-type">
-                        <div class="btn-group w-100" role="group" aria-label="账户类型">
-                            <input type="radio" class="btn-check" name="account_type" id="lsky-account-paid" value="paid" checked>
-                            <label class="btn btn-outline-primary" for="lsky-account-paid">付费版</label>
-
-                            <input type="radio" class="btn-check" name="account_type" id="lsky-account-free" value="free">
-                            <label class="btn btn-outline-primary" for="lsky-account-free">开源版</label>
-                        </div>
-                        <p class="lsky-pro-description text-center mt-2 mb-0" id="lsky-account-desc">付费版需要输入购买的授权Token</p>
-                    </div>
-
                     <div class="lsky-pro-form-group">
                         <label for="lsky-api-url">API 地址</label>
                         <input
@@ -357,31 +220,6 @@ class LskyProSetup {
                                 name="token"
                                 placeholder="请输入您的授权Token"
                                 autocomplete="off"
-                            >
-                        </div>
-                    </div>
-
-                    <div id="lsky-free-fields" class="lsky-pro-fields-container" style="display:none;">
-                        <div class="lsky-pro-form-group">
-                            <label for="lsky-email">邮箱</label>
-                            <input
-                                type="email"
-                                class="lsky-pro-input"
-                                id="lsky-email"
-                                name="email"
-                                placeholder="请输入注册邮箱"
-                                autocomplete="email"
-                            >
-                        </div>
-                        <div class="lsky-pro-form-group">
-                            <label for="lsky-password">密码</label>
-                            <input
-                                type="password"
-                                class="lsky-pro-input"
-                                id="lsky-password"
-                                name="password"
-                                placeholder="请输入密码"
-                                autocomplete="current-password"
                             >
                         </div>
                     </div>
@@ -439,7 +277,7 @@ class LskyProSetup {
         }
         
         $api_url = rtrim(sanitize_url($_POST['api_url']), '/');
-        $account_type = sanitize_text_field($_POST['account_type']);
+        $token = sanitize_text_field($_POST['token'] ?? '');
         
         if (empty($api_url)) {
             wp_send_json_error('请输入 API 地址');
@@ -454,61 +292,12 @@ class LskyProSetup {
         $options = array(
             'lsky_pro_api_url' => $api_url,
         );
-        
-        if ($account_type === 'paid') {
-            $token = sanitize_text_field($_POST['token']);
-            if (empty($token)) {
-                wp_send_json_error('请输入 Token');
-                return;
-            }
-            $options['lsky_pro_token'] = $token;
-        } else if ($account_type === 'free') {
-            $email = sanitize_email($_POST['email']);
-            $password = $_POST['password'];
-            
-            if (empty($email) || empty($password)) {
-                wp_send_json_error('请输入邮箱和密码');
-                return;
-            }
 
-            // 获取 Token
-            $token_url = rtrim($api_url, '/') . '/tokens';
-            $response = wp_remote_post($token_url, array(
-                'headers' => array(
-                    'Accept' => 'application/json',
-                    'Content-Type' => 'application/json'
-                ),
-                'body' => json_encode(array(
-                    'email' => $email,
-                    'password' => $password
-                )),
-                'timeout' => 30
-            ));
-            
-            if (is_wp_error($response)) {
-                wp_send_json_error('获取 Token 失败：' . $response->get_error_message());
-                return;
-            }
-            
-            $status_code = wp_remote_retrieve_response_code($response);
-            if ($status_code !== 200) {
-                wp_send_json_error('获取 Token 失败：服务器返回状态码 ' . $status_code);
-                return;
-            }
-            
-            $result = json_decode(wp_remote_retrieve_body($response), true);
-            if (!isset($result['status']) || $result['status'] !== 'success') {
-                wp_send_json_error('获取 Token 失败：' . ($result['message'] ?? '未知错误'));
-                return;
-            }
-            
-            if (!isset($result['data']['token'])) {
-                wp_send_json_error('获取 Token 失败：响应中没有 token');
-                return;
-            }
-            
-            $options['lsky_pro_token'] = $result['data']['token'];
+        if (empty($token)) {
+            wp_send_json_error('请输入 Token');
+            return;
         }
+        $options['lsky_pro_token'] = $token;
         
         // 保存配置
         update_option('lsky_pro_options', $options);

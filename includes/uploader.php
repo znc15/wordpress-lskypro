@@ -196,6 +196,12 @@ class LskyProUploader {
             $storage_id = intval($options['storage_id']);
         }
 
+        // 全局默认相册（可选）：仅当 >0 时随上传携带 album_id
+        $album_id = 0;
+        if (isset($options['album_id'])) {
+            $album_id = absint($options['album_id']);
+        }
+
         // 若未设置或设置了无效 id，则尝试从 /group.storages 自动选择一个可用 id。
         $storages = $this->get_strategies();
         if (is_array($storages) && !empty($storages)) {
@@ -243,6 +249,7 @@ class LskyProUploader {
             'fields' => array(
                 'storage_id' => (int) $storage_id,
                 'is_public' => $is_public ? 1 : 0,
+                'album_id' => $album_id > 0 ? (int) $album_id : null,
                 // 不回传 token 值，避免泄露；仅标记是否携带。
                 'token_present' => 1,
             ),
@@ -260,6 +267,10 @@ class LskyProUploader {
             'storage_id' => $storage_id,
             'is_public' => $is_public ? '1' : '0',
         );
+
+        if ($album_id > 0) {
+            $post_data['album_id'] = (string) $album_id;
+        }
 
         $this->debug_log('准备发送请求到: ' . $upload_url);
 
@@ -658,6 +669,210 @@ class LskyProUploader {
         }
 
         return $storages;
+    }
+
+    /**
+     * 获取相册列表（GET /user/albums）
+     *
+     * @param int $page
+     * @param int $per_page
+     * @param string|null $q
+     * @return array|false
+     */
+    public function get_albums($page = 1, $per_page = 100, $q = null) {
+        $options = get_option('lsky_pro_options');
+        $api_url = $options['lsky_pro_api_url'] ?? '';
+        $token = $options['lsky_pro_token'] ?? '';
+
+        if ($api_url === '' || $token === '') {
+            $this->error = '请先配置 API 地址和 Token';
+            return false;
+        }
+
+        $page = (int) $page;
+        if ($page <= 0) {
+            $page = 1;
+        }
+
+        $per_page = (int) $per_page;
+        if ($per_page <= 0) {
+            $per_page = 100;
+        }
+
+        $q = is_string($q) ? trim($q) : '';
+
+        $cache_key = 'lsky_pro_albums_' . md5($api_url . '|' . $token . '|' . $page . '|' . $per_page . '|' . $q);
+        $cached = get_transient($cache_key);
+        if (is_array($cached)) {
+            return $cached;
+        }
+
+        $url = rtrim($api_url, '/') . '/user/albums';
+        $args = array(
+            'page' => $page,
+            'per_page' => $per_page,
+        );
+        if ($q !== '') {
+            $args['q'] = $q;
+        }
+        $url = add_query_arg($args, $url);
+
+        $response = wp_remote_get(
+            $url,
+            array(
+                'headers' => array(
+                    'Authorization' => 'Bearer ' . $token,
+                    'Accept' => 'application/json',
+                ),
+                'timeout' => 30,
+                'sslverify' => false,
+            )
+        );
+
+        if (is_wp_error($response)) {
+            $this->error = $response->get_error_message();
+            return false;
+        }
+
+        $http_code = (int) wp_remote_retrieve_response_code($response);
+        $raw_body = (string) wp_remote_retrieve_body($response);
+
+        $data = json_decode($raw_body, true);
+        if (!is_array($data)) {
+            $snippet = substr(trim($raw_body), 0, 300);
+            $this->error = '获取相册列表失败：响应解析失败（HTTP ' . $http_code . '）' . ($snippet !== '' ? '；响应片段：' . $snippet : '');
+            return false;
+        }
+
+        if ($http_code !== 200) {
+            $msg = $data['message'] ?? 'HTTP ' . $http_code;
+            $this->error = '获取相册列表失败：' . $msg;
+            return false;
+        }
+
+        if (!isset($data['status']) || $data['status'] !== 'success') {
+            $this->error = $data['message'] ?? '获取相册列表失败';
+            return false;
+        }
+
+        // 缓存 10 分钟
+        set_transient($cache_key, $data, 10 * MINUTE_IN_SECONDS);
+        return $data;
+    }
+
+    /**
+     * 获取全部相册（自动分页合并）
+     *
+     * @param string|null $q
+     * @param int $per_page
+     * @return array|false 返回相册 item 数组
+     */
+    public function get_all_albums($q = null, $per_page = 100) {
+        $options = get_option('lsky_pro_options');
+        $api_url = $options['lsky_pro_api_url'] ?? '';
+        $token = $options['lsky_pro_token'] ?? '';
+
+        if ($api_url === '' || $token === '') {
+            $this->error = '请先配置 API 地址和 Token';
+            return false;
+        }
+
+        $per_page = (int) $per_page;
+        if ($per_page <= 0) {
+            $per_page = 100;
+        }
+
+        $q = is_string($q) ? trim($q) : '';
+        $cache_key = 'lsky_pro_albums_all_' . md5($api_url . '|' . $token . '|' . $per_page . '|' . $q);
+        $cached = get_transient($cache_key);
+        if (is_array($cached)) {
+            return $cached;
+        }
+
+        $first = $this->get_albums(1, $per_page, $q);
+        if ($first === false) {
+            return false;
+        }
+
+        $extract_items = function ($resp) {
+            if (!is_array($resp) || !isset($resp['data']) || !is_array($resp['data'])) {
+                return array();
+            }
+            // 常见分页结构：data.data
+            if (isset($resp['data']['data']) && is_array($resp['data']['data'])) {
+                return $resp['data']['data'];
+            }
+            // 有些实现可能直接把列表放在 data
+            $data = $resp['data'];
+            $is_list = array_keys($data) === range(0, count($data) - 1);
+            if ($is_list) {
+                return $data;
+            }
+            // 兜底：其它可能的 key
+            if (isset($resp['data']['albums']) && is_array($resp['data']['albums'])) {
+                return $resp['data']['albums'];
+            }
+            return array();
+        };
+
+        $extract_last_page = function ($resp) {
+            if (!is_array($resp) || !isset($resp['data']) || !is_array($resp['data'])) {
+                return 1;
+            }
+            if (isset($resp['data']['meta']['last_page'])) {
+                return (int) $resp['data']['meta']['last_page'];
+            }
+            if (isset($resp['data']['last_page'])) {
+                return (int) $resp['data']['last_page'];
+            }
+            return 1;
+        };
+
+        $albums = $extract_items($first);
+        if (!is_array($albums)) {
+            $albums = array();
+        }
+
+        $last_page = (int) $extract_last_page($first);
+        if ($last_page < 1) {
+            $last_page = 1;
+        }
+
+        // 安全阈值，避免接口异常导致无限分页。
+        $max_pages = 50;
+        if ($last_page > $max_pages) {
+            $last_page = $max_pages;
+        }
+
+        for ($p = 2; $p <= $last_page; $p++) {
+            $resp = $this->get_albums($p, $per_page, $q);
+            if ($resp === false) {
+                return false;
+            }
+
+            $page_albums = $extract_items($resp);
+            if (is_array($page_albums) && !empty($page_albums)) {
+                $albums = array_merge($albums, $page_albums);
+            }
+        }
+
+        // 若接口返回 success 但结构无法解析/或确实为空：给出可见提示。
+        if (empty($albums)) {
+            $has_data = (is_array($first) && isset($first['data']) && is_array($first['data']));
+            if ($has_data) {
+                $keys = implode(',', array_keys($first['data']));
+                $this->error = '未获取到任何相册（data keys：' . $keys . '）';
+            } else {
+                $this->error = '未获取到任何相册（返回结构异常）';
+            }
+
+            // 空结果不要长时间缓存，避免刚新建相册后长时间看不到。
+            set_transient($cache_key, $albums, 60);
+            return $albums;
+        }
+
+        set_transient($cache_key, $albums, 10 * MINUTE_IN_SECONDS);
+        return $albums;
     }
 
     /**

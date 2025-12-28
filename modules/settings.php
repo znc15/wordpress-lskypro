@@ -9,6 +9,8 @@ function lsky_pro_default_options() {
         'lsky_pro_api_url' => '',
         'lsky_pro_token' => '',
         'storage_id' => '1',
+        // 全局默认相册（0 表示不指定）
+        'album_id' => '0',
         'process_remote_images' => 0,
     );
 }
@@ -63,6 +65,10 @@ function lsky_pro_validate_settings($input) {
         $storage_id = 1;
     }
     $clean['storage_id'] = (string) $storage_id;
+
+    // 相册 ID（0 表示不指定）
+    $album_id = isset($input['album_id']) ? absint($input['album_id']) : 0;
+    $clean['album_id'] = (string) $album_id;
 
     // 复选框：未勾选时 WordPress 不会提交该键
     $clean['process_remote_images'] = (!empty($input['process_remote_images']) && (string) $input['process_remote_images'] === '1') ? 1 : 0;
@@ -139,6 +145,40 @@ function lsky_pro_validate_settings($input) {
         return $previous;
     }
 
+    // 校验相册 ID：不指定(0) 允许；指定时必须在相册列表中。
+    if ($album_id > 0) {
+        $uploader = new LskyProUploader();
+        $albums = $uploader->get_all_albums('', 100);
+        if ($albums === false) {
+            add_settings_error(
+                'lsky_pro_options',
+                'lsky_pro_album_error',
+                '相册列表获取失败，无法保存相册选择：' . $uploader->getError(),
+                'error'
+            );
+            // 不阻断其它设置，但保持旧相册值
+            $clean['album_id'] = (string) ($previous['album_id'] ?? '0');
+        } else {
+            $found = false;
+            foreach ($albums as $a) {
+                if (is_array($a) && isset($a['id']) && (int) $a['id'] === $album_id) {
+                    $found = true;
+                    break;
+                }
+            }
+
+            if (!$found) {
+                add_settings_error(
+                    'lsky_pro_options',
+                    'lsky_pro_album_error',
+                    '相册不存在或无权限访问，无法保存相册选择（ID: ' . $album_id . '）',
+                    'error'
+                );
+                $clean['album_id'] = (string) ($previous['album_id'] ?? '0');
+            }
+        }
+    }
+
     add_settings_error(
         'lsky_pro_options',
         'lsky_pro_token_success',
@@ -182,6 +222,11 @@ function lsky_pro_settings_init() {
             'id' => 'storage_id',
             'title' => '存储ID',
             'callback' => 'lsky_pro_storage_id_callback'
+        ),
+        array(
+            'id' => 'album_id',
+            'title' => '相册',
+            'callback' => 'lsky_pro_album_id_callback'
         ),
         array(
             'id' => 'process_remote_images',
@@ -286,6 +331,77 @@ function lsky_pro_storage_id_callback() {
             </option>
         <?php endforeach; ?>
     </select>
+    <?php
+}
+
+function lsky_pro_album_id_callback() {
+    $options = lsky_pro_get_options_normalized();
+    $album_id = isset($options['album_id']) ? absint($options['album_id']) : 0;
+
+    $uploader = new LskyProUploader();
+    $albums = $uploader->get_all_albums('', 100);
+
+    // 不做“手动输入”降级：仅提供下拉选择。
+    if ($albums === false) {
+        ?>
+        <select class="form-select" style="max-width: 520px;" name='lsky_pro_options[album_id]' id='lsky_pro_album_id'>
+            <?php if ($album_id > 0): ?>
+                <option value='<?php echo esc_attr((string) $album_id); ?>' selected>
+                    <?php echo esc_html('当前相册 ID: ' . $album_id . '（无法加载相册列表）'); ?>
+                </option>
+            <?php endif; ?>
+            <option value='0' <?php selected($album_id, 0); ?>>不指定相册（不上传 album_id）</option>
+        </select>
+        <div class="notice notice-error inline" style="max-width: 520px;"><p>获取相册列表失败：<?php echo esc_html($uploader->getError()); ?></p></div>
+        <p class="description">用于上传时可选携带 <code>album_id</code>；未指定则不会携带该字段。</p>
+        <?php
+        return;
+    }
+
+    $available_ids = array();
+    foreach ($albums as $a) {
+        if (is_array($a) && isset($a['id'])) {
+            $available_ids[] = (int) $a['id'];
+        }
+    }
+    $available_ids = array_values(array_unique(array_filter($available_ids)));
+    if (!empty($available_ids) && $album_id > 0 && !in_array($album_id, $available_ids, true)) {
+        $album_id = 0;
+    }
+
+    ?>
+    <select class="form-select" style="max-width: 520px;" name='lsky_pro_options[album_id]' id='lsky_pro_album_id'>
+        <option value='0' <?php selected($album_id, 0); ?>>不指定相册（不上传 album_id）</option>
+        <?php if (empty($albums)): ?>
+            <option value="" disabled selected>未获取到任何相册（请检查 Token 权限或接口返回）</option>
+        <?php endif; ?>
+        <?php foreach ($albums as $album): ?>
+            <?php
+            if (!is_array($album)) {
+                continue;
+            }
+            $id = isset($album['id']) ? (int) $album['id'] : 0;
+            if ($id <= 0) {
+                continue;
+            }
+            $name = isset($album['name']) ? (string) $album['name'] : '';
+            $intro = isset($album['intro']) ? (string) $album['intro'] : '';
+            $label = $name !== '' ? $name : ('相册 ' . $id);
+            if ($intro !== '') {
+                $label .= ' - ' . $intro;
+            }
+            ?>
+            <option value='<?php echo esc_attr((string) $id); ?>' <?php selected($album_id, $id); ?>>
+                <?php echo esc_html($label); ?> (ID: <?php echo esc_html((string) $id); ?>)
+            </option>
+        <?php endforeach; ?>
+    </select>
+    <?php if (empty($albums)): ?>
+        <div class="notice notice-warning inline" style="max-width: 520px;"><p>
+            未获取到任何相册。请确认 Token 具备读取相册权限，或接口返回结构与预期不一致。<?php echo $uploader->getError() ? '（提示：' . esc_html($uploader->getError()) . '）' : ''; ?>
+        </p></div>
+    <?php endif; ?>
+    <p class="description">用于上传时可选携带 <code>album_id</code>；未指定则不会携带该字段。</p>
     <?php
 }
 

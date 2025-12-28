@@ -34,7 +34,6 @@ if (!function_exists('lsky_pro_fetch_github_latest_release')) {
             array(
                 'timeout' => 15,
                 'headers' => array(
-                    // 让 GitHub 返回已渲染好的 HTML（body_html），避免本地解析 Markdown。
                     'Accept' => 'application/vnd.github.v3.html+json',
                     'User-Agent' => 'WordPress-LskyPro',
                 ),

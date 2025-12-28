@@ -26,25 +26,6 @@ jQuery(document).ready(function ($) {
         if (toast) toast.show();
     }
 
-    function setAccountType(type) {
-        if (type === 'free') {
-            $('#lsky-paid-fields').hide();
-            $('#lsky-free-fields').show();
-            $('#lsky-account-desc').text('开源版需要输入注册的邮箱和密码');
-        } else {
-            $('#lsky-free-fields').hide();
-            $('#lsky-paid-fields').show();
-            $('#lsky-account-desc').text('付费版需要输入购买的授权Token');
-        }
-    }
-
-    $('input[name="account_type"]').on('change', function () {
-        setAccountType($(this).val());
-    });
-
-    // 初始状态
-    setAccountType($('input[name="account_type"]:checked').val() || 'paid');
-
     // API URL 自动补全到 /api/v2
     $('#lsky-api-url').on('blur', function () {
         let url = String($(this).val() || '').trim();
@@ -64,31 +45,17 @@ jQuery(document).ready(function ($) {
             return;
         }
 
-        const accountType = $('input[name="account_type"]:checked').val();
         const apiUrl = String($('#lsky-api-url').val() || '').trim();
         const token = String($('#lsky-token').val() || '').trim();
-        const email = String($('#lsky-email').val() || '').trim();
-        const password = String($('#lsky-password').val() || '');
 
         if (!apiUrl) {
             showToast('请输入 API 地址', 'error');
             return;
         }
 
-        if (accountType === 'paid' && !token) {
+        if (!token) {
             showToast('请输入 Token', 'error');
             return;
-        }
-
-        if (accountType === 'free') {
-            if (!email) {
-                showToast('请输入邮箱', 'error');
-                return;
-            }
-            if (!password) {
-                showToast('请输入密码', 'error');
-                return;
-            }
         }
 
         const $btn = $('#lsky-setup-submit');
@@ -99,14 +66,8 @@ jQuery(document).ready(function ($) {
         const formData = new FormData();
         formData.append('action', 'lsky_pro_setup');
         formData.append('setup_nonce', data.nonce);
-        formData.append('account_type', accountType);
         formData.append('api_url', apiUrl);
-        if (accountType === 'paid') {
-            formData.append('token', token);
-        } else {
-            formData.append('email', email);
-            formData.append('password', password);
-        }
+        formData.append('token', token);
 
         fetch(data.ajaxurl, {
             method: 'POST',
