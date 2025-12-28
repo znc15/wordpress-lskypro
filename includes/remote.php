@@ -30,6 +30,8 @@ class LskyProRemote {
         // 匹配所有图片标签
         $pattern = '/<img[^>]+src=([\'\"])(https?:\/\/[^>]+?)\1[^>]*>/i';
         $site_url = get_site_url();
+        $uploads = wp_upload_dir();
+        $baseurl = isset($uploads['baseurl']) ? (string) $uploads['baseurl'] : '';
         $updated = false;
         
         // 获取已处理的图片URL映射
@@ -40,20 +42,46 @@ class LskyProRemote {
             
             foreach ($matches[2] as $url) {
                 error_log("LskyPro: 处理图片URL: {$url}");
+
+                // 去掉 query/hash，便于匹配附件与文件。
+                $url_clean = (string) $url;
+                $parsed = wp_parse_url($url_clean);
+                if (is_array($parsed) && !empty($parsed['scheme']) && !empty($parsed['host']) && !empty($parsed['path'])) {
+                    $url_clean = $parsed['scheme'] . '://' . $parsed['host'] . $parsed['path'];
+                }
                 
                 // 检查是否已经有对应的图床URL
-                if (isset($processed_urls[$url])) {
-                    error_log("LskyPro: 找到已处理图片的图床地址: {$processed_urls[$url]}");
-                    if ($url !== $processed_urls[$url]) {
-                        $content = str_replace($url, $processed_urls[$url], $content);
+                if (isset($processed_urls[$url_clean])) {
+                    error_log("LskyPro: 找到已处理图片的图床地址: {$processed_urls[$url_clean]}");
+                    if ($url !== $processed_urls[$url_clean]) {
+                        $content = str_replace($url, $processed_urls[$url_clean], $content);
                         $updated = true;
                         error_log("LskyPro: 替换为图床地址");
                     }
                     continue;
                 }
                 
-                // 处理外链图片（不是本站的图片且不是图床的图片）
-                if (strpos($url, $site_url) === false && !$this->is_lsky_url($url)) {
+                // 1) 处理本站媒体图片（先本地编辑，保存文章时替换到图床）
+                if (strpos($url_clean, $site_url) !== false && !$this->is_lsky_url($url_clean) && $baseurl !== '' && strpos($url_clean, $baseurl) === 0) {
+                    error_log("LskyPro: 检测到本站媒体图片，准备上传: {$url_clean}");
+
+                    $new_url = $this->process_local_media_image($url_clean);
+                    if ($new_url) {
+                        error_log("LskyPro: 本站媒体图片上传成功，新URL: {$new_url}");
+                        $content = str_replace($url, $new_url, $content);
+                        $processed_urls[$url_clean] = $new_url;
+                        $this->processed++;
+                        $updated = true;
+                    } else {
+                        error_log("LskyPro: 本站媒体图片处理失败: " . $this->error);
+                        $this->failed++;
+                    }
+
+                    continue;
+                }
+
+                // 2) 处理外链图片（不是本站的图片且不是图床的图片）
+                if (strpos($url_clean, $site_url) === false && !$this->is_lsky_url($url_clean)) {
                     error_log("LskyPro: 检测到外链图片，准备上传: {$url}");
                     
                     // 下载并上传远程图片
@@ -61,7 +89,7 @@ class LskyProRemote {
                     if ($new_url) {
                         error_log("LskyPro: 图片上传成功，新URL: {$new_url}");
                         $content = str_replace($url, $new_url, $content);
-                        $processed_urls[$url] = $new_url; // 保存URL映射关系
+                        $processed_urls[$url_clean] = $new_url; // 保存URL映射关系
                         $this->processed++;
                         $updated = true;
                     } else {
@@ -70,7 +98,7 @@ class LskyProRemote {
                     }
                 } else {
                     error_log("LskyPro: 跳过本站或图床图片: {$url}");
-                    $processed_urls[$url] = $url;
+                    $processed_urls[$url_clean] = $url;
                 }
             }
         } else {
@@ -94,6 +122,56 @@ class LskyProRemote {
         }
         
         return true;
+    }
+
+    /**
+     * 处理本站媒体库图片（上传原图到图床并记录到附件 meta）。
+     */
+    private function process_local_media_image($url) {
+        $attachment_id = attachment_url_to_postid($url);
+        $file_path = '';
+
+        if (is_numeric($attachment_id) && (int) $attachment_id > 0) {
+            $attachment_id = (int) $attachment_id;
+            $file_path = get_attached_file($attachment_id);
+        }
+
+        if (!is_string($file_path) || $file_path === '' || !file_exists($file_path)) {
+            // 兜底：通过 uploads baseurl -> basedir 映射。
+            $uploads = wp_upload_dir();
+            $baseurl = isset($uploads['baseurl']) ? (string) $uploads['baseurl'] : '';
+            $basedir = isset($uploads['basedir']) ? (string) $uploads['basedir'] : '';
+            if ($baseurl !== '' && $basedir !== '' && strpos($url, $baseurl) === 0) {
+                $relative = substr($url, strlen($baseurl));
+                $relative = ltrim($relative, '/');
+                $file_path = rtrim($basedir, '/\\') . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $relative);
+            }
+        }
+
+        if (!is_string($file_path) || $file_path === '' || !file_exists($file_path)) {
+            $this->error = '无法定位本地文件路径';
+            return false;
+        }
+
+        $new_url = $this->uploader->upload($file_path);
+        if (!$new_url) {
+            $this->error = $this->uploader->getError();
+            return false;
+        }
+
+        // 若能定位到附件，则记录 meta，便于媒体库状态/删除联动。
+        if (isset($attachment_id) && is_int($attachment_id) && $attachment_id > 0) {
+            update_post_meta($attachment_id, '_lsky_pro_url', $new_url);
+            $photo_id = $this->uploader->getLastUploadedPhotoId();
+            if (is_numeric($photo_id)) {
+                $photo_id = (int) $photo_id;
+                if ($photo_id > 0) {
+                    update_post_meta($attachment_id, '_lsky_pro_photo_id', $photo_id);
+                }
+            }
+        }
+
+        return $new_url;
     }
     
     /**
