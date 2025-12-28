@@ -110,31 +110,34 @@ function lsky_pro_admin_scripts($hook) {
             null
         );
 
-        // 批量处理页：复用旧版管理脚本（无需额外构建产物，兼容当前模板结构）
-        wp_enqueue_script('lsky-pro-admin', plugins_url('assets/js/admin-script.js', LSKY_PRO_PLUGIN_FILE), array('jquery', $bootstrap_handle), null, true);
-        wp_localize_script('lsky-pro-admin', 'lskyProData', array(
+        // 批量处理页脚本（拆分为多个子文件）
+        wp_enqueue_script('lsky-pro-admin-base', plugins_url('assets/js/admin/base.js', LSKY_PRO_PLUGIN_FILE), array('jquery', $bootstrap_handle), null, true);
+        wp_localize_script('lsky-pro-admin-base', 'lskyProData', array(
             'nonce' => wp_create_nonce('lsky_pro_ajax'),
             'batchNonce' => wp_create_nonce('lsky_pro_batch'),
             'ajaxurl' => admin_url('admin-ajax.php')
         ));
+        wp_enqueue_script('lsky-pro-admin-batch', plugins_url('assets/js/admin/batch.js', LSKY_PRO_PLUGIN_FILE), array('lsky-pro-admin-base'), null, true);
         return;
     }
 
     if ($current_page === 'lsky-pro-settings') {
-        // 概览页：用户信息等
-        wp_enqueue_script('lsky-pro-admin', plugins_url('assets/js/admin-script.js', LSKY_PRO_PLUGIN_FILE), array('jquery', $bootstrap_handle), null, true);
-        wp_localize_script('lsky-pro-admin', 'lskyProData', array(
+        // 概览页：用户信息等（拆分为多个子文件）
+        wp_enqueue_script('lsky-pro-admin-base', plugins_url('assets/js/admin/base.js', LSKY_PRO_PLUGIN_FILE), array('jquery', $bootstrap_handle), null, true);
+        wp_localize_script('lsky-pro-admin-base', 'lskyProData', array(
             'nonce' => wp_create_nonce('lsky_pro_ajax'),
             'batchNonce' => wp_create_nonce('lsky_pro_batch'),
             'ajaxurl' => admin_url('admin-ajax.php')
         ));
+        wp_enqueue_script('lsky-pro-admin-info', plugins_url('assets/js/admin/info.js', LSKY_PRO_PLUGIN_FILE), array('lsky-pro-admin-base'), null, true);
+        wp_enqueue_script('lsky-pro-admin-update', plugins_url('assets/js/admin/update.js', LSKY_PRO_PLUGIN_FILE), array('lsky-pro-admin-base'), null, true);
         return;
     }
 
     if ($current_page === 'lsky-pro-config') {
         // 设置页：也需要加载脚本以支持交互功能
-        wp_enqueue_script('lsky-pro-admin', plugins_url('assets/js/admin-script.js', LSKY_PRO_PLUGIN_FILE), array('jquery', $bootstrap_handle), null, true);
-        wp_localize_script('lsky-pro-admin', 'lskyProData', array(
+        wp_enqueue_script('lsky-pro-admin-base', plugins_url('assets/js/admin/base.js', LSKY_PRO_PLUGIN_FILE), array('jquery', $bootstrap_handle), null, true);
+        wp_localize_script('lsky-pro-admin-base', 'lskyProData', array(
             'nonce' => wp_create_nonce('lsky_pro_ajax'),
             'ajaxurl' => admin_url('admin-ajax.php')
         ));
