@@ -21,6 +21,14 @@ jQuery(document).ready(function($) {
                     message = `已处理: ${item.original} (已存在于图床)`;
                 } else if (item.status === 'newly_processed') {
                     message = `处理成功: ${item.original} -> ${item.new_url}`;
+                } else if (
+                    item.status === 'restricted_skipped' ||
+                    item.status === 'excluded_skipped' ||
+                    item.status === 'excluded' ||
+                    item.status === 'avatar_skipped' ||
+                    item.status === 'avatar_marked_skipped'
+                ) {
+                    message = `此图片为标记图片，跳过处理: ${item.original}`;
                 } else {
                     message = `处理失败: ${item.original} (${item.error})`;
                 }

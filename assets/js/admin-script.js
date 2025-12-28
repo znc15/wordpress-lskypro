@@ -92,8 +92,17 @@ jQuery(document).ready(function($) {
                             addLog(`已处理: ${item.original} (已存在于图床)`, 'success');
                             return;
                         }
+                        const skippedStatuses = ['restricted_skipped', 'excluded_skipped', 'excluded', 'avatar_skipped', 'avatar_marked_skipped'];
+                        if (item.status && skippedStatuses.indexOf(item.status) !== -1) {
+                            addLog(`此图片为标记图片，跳过处理: ${item.original}`, 'success');
+                            return;
+                        }
                         if (item.success) {
-                            addLog(`处理成功: ${item.original} -> ${item.new_url}`, 'success');
+                            if (!item.new_url) {
+                                addLog(`此图片为标记图片，跳过处理: ${item.original}`, 'success');
+                            } else {
+                                addLog(`处理成功: ${item.original} -> ${item.new_url}`, 'success');
+                            }
                             return;
                         }
                         addLog(`处理失败: ${item.original} (${item.error || '未知错误'})`, 'error');
