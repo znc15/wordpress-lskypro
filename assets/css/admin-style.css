@@ -588,4 +588,365 @@ table.widefat {
 .version-badge.outdated {
     background-color: #fee2e2;
     color: #991b1b;
+}
+
+/* 页面头部样式 */
+.lsky-header {
+    margin-bottom: 20px;
+    padding-bottom: 15px;
+    border-bottom: 2px solid #e5e7eb;
+}
+
+.lsky-header h1 {
+    font-size: 28px;
+    font-weight: 600;
+    color: #1e293b;
+    margin: 0;
+}
+
+/* 渐变背景 */
+.bg-gradient {
+    background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+}
+
+/* 阴影效果 */
+.shadow-sm {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08) !important;
+}
+
+/* 上传状态显示 */
+.lsky-upload-status {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    padding: 15px 20px;
+    background: #fff;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    border-radius: 8px;
+    z-index: 9999;
+    min-width: 250px;
+    transition: all 0.3s ease;
+}
+
+.lsky-upload-status .status-text {
+    display: block;
+    font-size: 14px;
+    font-weight: 500;
+    color: #334155;
+    margin-bottom: 10px;
+}
+
+.lsky-upload-status .progress-bar-wrapper {
+    width: 100%;
+    height: 6px;
+    background: #e5e7eb;
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.lsky-upload-status .progress-bar-fill {
+    width: 0%;
+    height: 100%;
+    background: linear-gradient(90deg, #2271b1 0%, #135e96 100%);
+    border-radius: 3px;
+    transition: width 0.3s ease;
+}
+
+.lsky-upload-status.error {
+    background: #dc3232;
+    color: #fff;
+}
+
+.lsky-upload-status.error .status-text {
+    color: #fff;
+}
+
+.lsky-upload-status.error .progress-bar-wrapper {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+.lsky-upload-status.error .progress-bar-fill {
+    background: #fff;
+}
+
+/* 用户信息卡片样式 */
+.info-card {
+    background: #fff;
+    border-radius: 12px;
+    border: 1px solid #e5e7eb;
+    overflow: hidden;
+    transition: all 0.3s ease;
+    height: 100%;
+}
+
+.info-card:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    transform: translateY(-2px);
+}
+
+.info-card-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 16px 20px;
+    background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.info-card-header i.dashicons {
+    font-size: 20px;
+    width: 20px;
+    height: 20px;
+    color: #2271b1;
+}
+
+.info-card-header h3 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
+    color: #1e293b;
+}
+
+.info-card-body {
+    padding: 20px;
+}
+
+/* 信息项样式 */
+.info-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 0;
+    border-bottom: 1px solid #f1f5f9;
+}
+
+.info-item:last-child {
+    border-bottom: none;
+}
+
+.info-label {
+    font-size: 14px;
+    color: #64748b;
+    font-weight: 500;
+}
+
+.info-value {
+    font-size: 14px;
+    color: #1e293b;
+    font-weight: 600;
+}
+
+/* 存储空间样式 */
+.storage-stats {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+}
+
+.storage-numbers {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+}
+
+.storage-used {
+    font-size: 24px;
+    font-weight: 700;
+    color: #2271b1;
+}
+
+.storage-separator {
+    font-size: 18px;
+    color: #94a3b8;
+}
+
+.storage-total {
+    font-size: 16px;
+    color: #64748b;
+}
+
+.storage-percentage {
+    font-size: 20px;
+    font-weight: 700;
+    color: #2271b1;
+}
+
+.storage-progress {
+    width: 100%;
+    height: 12px;
+    background: #e5e7eb;
+    border-radius: 6px;
+    overflow: hidden;
+    position: relative;
+}
+
+.storage-progress-bar {
+    height: 100%;
+    background: linear-gradient(90deg, #2271b1 0%, #135e96 100%);
+    border-radius: 6px;
+    transition: width 0.6s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.storage-progress-bar::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+    animation: shimmer 2s infinite;
+}
+
+@keyframes shimmer {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(100%); }
+}
+
+/* 统计信息网格样式 */
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 20px;
+}
+
+.stat-item {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 16px;
+    background: linear-gradient(135deg, #f8fafc 0%, #ffffff 100%);
+    border-radius: 10px;
+    border: 1px solid #e5e7eb;
+    transition: all 0.3s ease;
+}
+
+.stat-item:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    border-color: #2271b1;
+}
+
+.stat-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 48px;
+    height: 48px;
+    background: linear-gradient(135deg, #2271b1 0%, #135e96 100%);
+    border-radius: 10px;
+    flex-shrink: 0;
+}
+
+.stat-icon i.dashicons {
+    font-size: 24px;
+    width: 24px;
+    height: 24px;
+    color: #fff;
+}
+
+.stat-content {
+    flex: 1;
+}
+
+.stat-value {
+    font-size: 28px;
+    font-weight: 700;
+    color: #1e293b;
+    line-height: 1;
+    margin-bottom: 4px;
+}
+
+.stat-label {
+    font-size: 13px;
+    color: #64748b;
+    font-weight: 500;
+}
+
+/* 响应式调整 */
+@media (max-width: 768px) {
+    .stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 480px) {
+    .stats-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .storage-stats {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+    }
+}
+
+/* 表单控件基础样式 */
+.lsky-input,
+.lsky-input-small,
+.lsky-select,
+.lsky-textarea {
+    width: 100%;
+    padding: 10px 14px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    font-size: 14px;
+    transition: all 0.2s ease;
+    background: #fff;
+}
+
+.lsky-input,
+.lsky-select,
+.lsky-textarea {
+    max-width: 600px;
+}
+
+.lsky-input-small {
+    max-width: 220px;
+    padding: 8px 12px;
+}
+
+.lsky-select {
+    cursor: pointer;
+}
+
+.lsky-textarea {
+    min-height: 90px;
+    font-family: monospace;
+    resize: vertical;
+}
+
+.lsky-input:focus,
+.lsky-input-small:focus,
+.lsky-select:focus,
+.lsky-textarea:focus {
+    border-color: #2271b1;
+    box-shadow: 0 0 0 1px #2271b1;
+    outline: none;
+}
+
+/* 简化的复选框样式 */
+.lsky-checkbox {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    user-select: none;
+}
+
+.lsky-checkbox input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+    margin: 0;
+}
+
+.lsky-checkbox span {
+    font-size: 14px;
+    font-weight: 500;
+    color: #1e293b;
 } 

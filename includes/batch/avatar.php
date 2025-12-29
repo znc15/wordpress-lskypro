@@ -8,9 +8,6 @@ if (!trait_exists('LskyProBatch_Avatar', false)) {
     trait LskyProBatch_Avatar {
         /**
          * 判断附件是否为用户头像。
-         *
-         * 说明：不同站点/插件保存头像的方式不一，这里用“常见 usermeta key + meta_value 包含附件ID”的
-         * 方式做一个尽量安全的识别；识别到后会在附件 postmeta 写入标记，后续批处理将直接跳过。
          */
         private function is_avatar_attachment($attachment_id) {
             global $wpdb;
@@ -76,8 +73,6 @@ if (!trait_exists('LskyProBatch_Avatar', false)) {
                 return true;
             }
 
-            // 兜底：有些头像插件/主题在 usermeta 里存的是 URL/文件名/路径，而不是附件ID
-            // 这里按 basename / guid 做 LIKE 匹配，尽量避免误伤（只在常见头像 key 范围内查）。
             $needles = array();
             if ($file_basename !== '') {
                 $needles[] = $file_basename;

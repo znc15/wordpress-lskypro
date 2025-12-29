@@ -291,38 +291,39 @@ add_action('admin_init', 'lsky_pro_settings_init');
 function lsky_pro_api_url_render() {
     $options = lsky_pro_get_options_normalized();
     ?>
-    <div class="input-group" style="max-width: 520px;">
-        <span class="input-group-text">URL</span>
+    <div class="lsky-form-group">
         <input
             type="url"
             name="lsky_pro_options[lsky_pro_api_url]"
             value="<?php echo esc_attr($options['lsky_pro_api_url'] ?? ''); ?>"
-            class="form-control regular-text"
+            class="lsky-input"
             placeholder="https://your-domain.com/api/v2"
             required
         >
+        <p class="description">
+            示例：<code>https://your-domain.com/api/v2</code>
+        </p>
     </div>
-    <p class="description">示例：<code>https://your-domain.com/api/v2</code></p>
     <?php
 }
 
 function lsky_pro_token_render() {
     $options = lsky_pro_get_options_normalized();
     ?>
-    <div class="input-group" style="max-width: 520px;">
-        <span class="input-group-text">Token</span>
+    <div class="lsky-form-group">
         <input
             type="text"
             name="lsky_pro_options[lsky_pro_token]"
             value="<?php echo esc_attr($options['lsky_pro_token'] ?? ''); ?>"
-            class="form-control regular-text"
+            class="lsky-input"
             placeholder="在 LskyPro 后台生成的访问令牌"
             required
         >
+        <p class="description">
+            用于上传鉴权，建议仅授予必要权限<br>
+            示例：<code>1|JVaaB4K7ves2G16DU2O9YvjCO9m8c9SmM7eRXt86cb22710f</code>
+        </p>
     </div>
-    <p class="description">用于上传鉴权。建议仅授予必要权限。</p>
-
-    <p class="description">示例：<code>1|JVaaB4K7ves2G16DU2O9YvjCO9m8c9SmM7eRXt86cb22710f</code></p>
     <?php
 }
 
@@ -335,14 +336,14 @@ function lsky_pro_storage_id_callback() {
     $storages = $uploader->get_strategies();
 
     if ($storages === false) {
-        echo '<input class="form-control" style="max-width: 220px;" type="number" name="lsky_pro_options[storage_id]" value="' . esc_attr($storage_id) . '" min="1">';
-        echo '<div class="alert alert-danger mt-2 mb-0" style="max-width: 520px;">获取存储策略失败：' . esc_html($uploader->getError()) . '</div>';
+        echo '<input class="lsky-input-small" type="number" name="lsky_pro_options[storage_id]" value="' . esc_attr($storage_id) . '" min="1">';
+        echo '<p class="description" style="color: #dc3232;">获取存储策略失败：' . esc_html($uploader->getError()) . '</p>';
         return;
     }
 
     if (empty($storages)) {
-        echo '<input class="form-control" style="max-width: 220px;" type="number" name="lsky_pro_options[storage_id]" value="' . esc_attr($storage_id) . '" min="1">';
-        echo '<div class="alert alert-warning mt-2 mb-0" style="max-width: 520px;">未获取到存储列表，可先手动填写存储 ID。</div>';
+        echo '<input class="lsky-input-small" type="number" name="lsky_pro_options[storage_id]" value="' . esc_attr($storage_id) . '" min="1">';
+        echo '<p class="description" style="color: #d63638;">未获取到存储列表，可先手动填写存储 ID。</p>';
         return;
     }
 
@@ -359,16 +360,14 @@ function lsky_pro_storage_id_callback() {
 
     // 显示下拉选择框
     ?>
-    <select class="form-select" style="max-width: 520px;" name='lsky_pro_options[storage_id]' id='lsky_pro_storage_id'>
+    <select class="lsky-select" name='lsky_pro_options[storage_id]' id='lsky_pro_storage_id'>
         <?php foreach ($storages as $storage): ?>
             <?php
             $id = isset($storage['id']) ? $storage['id'] : '';
             $name = isset($storage['name']) ? $storage['name'] : '';
             ?>
-            <option value='<?php echo esc_attr($id); ?>' 
-                    <?php selected($storage_id, $id); ?>>
-                <?php echo esc_html($name !== '' ? $name : ('ID: ' . $id)); ?>
-                (ID: <?php echo esc_html($id); ?>)
+            <option value='<?php echo esc_attr($id); ?>' <?php selected($storage_id, $id); ?>>
+                <?php echo esc_html($name !== '' ? $name : ('ID: ' . $id)); ?> (ID: <?php echo esc_html($id); ?>)
             </option>
         <?php endforeach; ?>
     </select>
@@ -382,18 +381,18 @@ function lsky_pro_album_id_callback() {
     $uploader = new LskyProUploader();
     $albums = $uploader->get_all_albums('', 100);
 
-    // 不做“手动输入”降级：仅提供下拉选择。
+    // 不做"手动输入"降级：仅提供下拉选择。
     if ($albums === false) {
         ?>
-        <select class="form-select" style="max-width: 520px;" name='lsky_pro_options[album_id]' id='lsky_pro_album_id'>
+        <select class="lsky-select" name='lsky_pro_options[album_id]' id='lsky_pro_album_id'>
             <?php if ($album_id > 0): ?>
                 <option value='<?php echo esc_attr((string) $album_id); ?>' selected>
-                    <?php echo esc_html('当前相册 ID: ' . $album_id . '（无法加载相册列表）'); ?>
+                    当前相册 ID: <?php echo esc_html($album_id); ?>（无法加载相册列表）
                 </option>
             <?php endif; ?>
             <option value='0' <?php selected($album_id, 0); ?>>不指定相册（不上传 album_id）</option>
         </select>
-        <div class="notice notice-error inline" style="max-width: 520px;"><p>获取相册列表失败：<?php echo esc_html($uploader->getError()); ?></p></div>
+        <p class="description" style="color: #dc3232;">获取相册列表失败：<?php echo esc_html($uploader->getError()); ?></p>
         <p class="description">用于上传时可选携带 <code>album_id</code>；未指定则不会携带该字段。</p>
         <?php
         return;
@@ -411,7 +410,7 @@ function lsky_pro_album_id_callback() {
     }
 
     ?>
-    <select class="form-select" style="max-width: 520px;" name='lsky_pro_options[album_id]' id='lsky_pro_album_id'>
+    <select class="lsky-select" name='lsky_pro_options[album_id]' id='lsky_pro_album_id'>
         <option value='0' <?php selected($album_id, 0); ?>>不指定相册（不上传 album_id）</option>
         <?php if (empty($albums)): ?>
             <option value="" disabled selected>未获取到任何相册（请检查 Token 权限或接口返回）</option>
@@ -438,51 +437,67 @@ function lsky_pro_album_id_callback() {
         <?php endforeach; ?>
     </select>
     <?php if (empty($albums)): ?>
-        <div class="notice notice-warning inline" style="max-width: 520px;"><p>
+        <p class="description" style="color: #d63638;">
             未获取到任何相册。请确认 Token 具备读取相册权限，或接口返回结构与预期不一致。<?php echo $uploader->getError() ? '（提示：' . esc_html($uploader->getError()) . '）' : ''; ?>
-        </p></div>
+        </p>
     <?php endif; ?>
     <p class="description">用于上传时可选携带 <code>album_id</code>；未指定则不会携带该字段。</p>
     <?php
 }
 
 function lsky_pro_settings_section_callback() {
-    echo '<div class="alert alert-info" style="max-width: 760px;">请填写 LskyPro 图床的连接信息。保存后会进行一次 Token 验证。</div>';
+    ?>
+    <div class="alert alert-info border-0 shadow-sm">
+        <div class="d-flex align-items-start">
+            <i class="dashicons dashicons-info" style="font-size: 20px; margin-right: 10px; margin-top: 2px;"></i>
+            <div>
+                <strong>配置说明</strong>
+                <p class="mb-0 mt-1">请填写 LskyPro 图床的连接信息。保存后会自动验证 Token 有效性。</p>
+            </div>
+        </div>
+    </div>
+    <?php
 }
 
 function lsky_pro_process_remote_images_callback() {
     $options = lsky_pro_get_options_normalized();
     ?>
-    <div class="form-check">
-        <input
-            class="form-check-input"
-            type='checkbox'
-            id="lsky_pro_process_remote_images"
-            name='lsky_pro_options[process_remote_images]'
-            value="1"
-            <?php checked(isset($options['process_remote_images']) && $options['process_remote_images'] == 1); ?>
-        >
-        <label class="form-check-label" for="lsky_pro_process_remote_images">自动处理文章中的远程图片</label>
+    <div class="lsky-form-group">
+        <label class="lsky-checkbox">
+            <input
+                type='checkbox'
+                id="lsky_pro_process_remote_images"
+                name='lsky_pro_options[process_remote_images]'
+                value="1"
+                <?php checked(isset($options['process_remote_images']) && $options['process_remote_images'] == 1); ?>
+            >
+            <span>自动处理文章中的远程图片</span>
+        </label>
+        <p class="description">
+            保存文章时，自动将远程图片上传到图床
+        </p>
     </div>
-    <p class="description">保存文章时，自动将远程图片上传到图床。</p>
     <?php
 }
 
 function lsky_pro_exclude_site_icon_callback() {
     $options = lsky_pro_get_options_normalized();
     ?>
-    <div class="form-check">
-        <input
-            class="form-check-input"
-            type='checkbox'
-            id="lsky_pro_exclude_site_icon"
-            name='lsky_pro_options[exclude_site_icon]'
-            value="1"
-            <?php checked(isset($options['exclude_site_icon']) && (int) $options['exclude_site_icon'] === 1); ?>
-        >
-        <label class="form-check-label" for="lsky_pro_exclude_site_icon">站点图标（Site Icon）不上传图床，保持本地文件</label>
+    <div class="lsky-form-group">
+        <label class="lsky-checkbox">
+            <input
+                type='checkbox'
+                id="lsky_pro_exclude_site_icon"
+                name='lsky_pro_options[exclude_site_icon]'
+                value="1"
+                <?php checked(isset($options['exclude_site_icon']) && (int) $options['exclude_site_icon'] === 1); ?>
+            >
+            <span>站点图标不上传图床，保持本地文件</span>
+        </label>
+        <p class="description" style="color: #d63638;">
+            建议开启：站点图标上传/裁剪流程通常依赖本地文件，上传图床并删除本地文件可能导致异常
+        </p>
     </div>
-    <p class="description">建议开启：站点图标上传/裁剪流程通常依赖本地文件，上传图床并删除本地文件可能导致异常。</p>
     <?php
 }
 
@@ -490,13 +505,16 @@ function lsky_pro_exclude_ajax_actions_callback() {
     $options = lsky_pro_get_options_normalized();
     $value = isset($options['exclude_ajax_actions']) ? (string) $options['exclude_ajax_actions'] : '';
     ?>
-    <textarea
-        class="form-control"
-        style="max-width: 520px; min-height: 90px;"
-        name="lsky_pro_options[exclude_ajax_actions]"
-        placeholder="avatar\n"
-    ><?php echo esc_textarea($value); ?></textarea>
-    <p class="description">一行一个关键字：当 <code>admin-ajax.php</code> 上传请求的 <code>action</code> 包含该关键字时，跳过图床上传。默认已包含 <code>avatar</code>。</p>
+    <div class="lsky-form-group">
+        <textarea
+            class="lsky-textarea"
+            name="lsky_pro_options[exclude_ajax_actions]"
+            placeholder="avatar&#10;"
+        ><?php echo esc_textarea($value); ?></textarea>
+        <p class="description">
+            一行一个关键字：当 <code>admin-ajax.php</code> 上传请求的 <code>action</code> 包含该关键字时，跳过图床上传。默认已包含 <code>avatar</code>
+        </p>
+    </div>
     <?php
 }
 
@@ -504,12 +522,15 @@ function lsky_pro_exclude_referer_contains_callback() {
     $options = lsky_pro_get_options_normalized();
     $value = isset($options['exclude_referer_contains']) ? (string) $options['exclude_referer_contains'] : '';
     ?>
-    <textarea
-        class="form-control"
-        style="max-width: 520px; min-height: 90px;"
-        name="lsky_pro_options[exclude_referer_contains]"
-        placeholder="/user/\n/order\n"
-    ><?php echo esc_textarea($value); ?></textarea>
-    <p class="description">可选：一行一个关键字，若上传请求的 Referer URL 包含该关键字，则跳过图床上传。适合用户中心上传头像但 action 不含 avatar 的场景。</p>
+    <div class="lsky-form-group">
+        <textarea
+            class="lsky-textarea"
+            name="lsky_pro_options[exclude_referer_contains]"
+            placeholder="/user/&#10;/order&#10;"
+        ><?php echo esc_textarea($value); ?></textarea>
+        <p class="description">
+            可选：一行一个关键字，若上传请求的 Referer URL 包含该关键字，则跳过图床上传。适合用户中心上传头像但 action 不含 avatar 的场景
+        </p>
+    </div>
     <?php
 }
