@@ -27,6 +27,27 @@ class LskyProUploadHandler {
         error_log('[LskyPro] ' . (string) $message);
     }
 
+    /**
+     * 写入错误日志到插件日志文件
+     */
+    private function log_error($filename, $error) {
+        $log_dir = LSKY_PRO_PLUGIN_DIR . 'logs';
+        $log_file = $log_dir . '/error.log';
+
+        if (!file_exists($log_dir)) {
+            wp_mkdir_p($log_dir);
+        }
+
+        $log_message = sprintf(
+            "[%s] 失败：%s - 错误：%s（本地文件已保留）\n",
+            date('Y-m-d H:i:s'),
+            basename($filename),
+            $error
+        );
+
+        file_put_contents($log_file, $log_message, FILE_APPEND | LOCK_EX);
+    }
+
     private function add_admin_notice($type, $message) {
         $type = $type === 'error' ? 'error' : 'success';
         $message = (string) $message;
@@ -132,19 +153,25 @@ class LskyProUploadHandler {
                 }
 
                 $this->debug_log('upload failed: ' . $error_message);
-                
+                $this->log_error($local_file_path, $error_message);
+
                 do_action('lsky_pro_upload_error', $error_message);
 
-                $this->add_admin_notice('error', '图床上传失败：' . esc_html($error_message));
+                $this->add_admin_notice('error', '图床上传失败（图片已保留在本地）：' . esc_html($error_message));
 
-                $file_array['error'] = '图床上传失败：' . $error_message;
+                // 不设置 $file_array['error']，让 WordPress 本地上传正常完成
+                // 图床上传失败时降级为仅保留本地文件，避免"吞封面"问题
             }
         } catch (Exception $e) {
             $this->debug_log('upload exception: ' . $e->getMessage());
-            
+            $this->log_error($local_file_path, '异常：' . $e->getMessage());
+
             do_action('lsky_pro_upload_exception', $e);
 
-            $file_array['error'] = '图床上传异常：' . $e->getMessage();
+            $this->add_admin_notice('error', '图床上传异常（图片已保留在本地）：' . esc_html($e->getMessage()));
+
+            // 不设置 $file_array['error']，让 WordPress 本地上传正常完成
+            // 图床上传异常时降级为仅保留本地文件，避免"吞封面"问题
         }
         
         return $file_array;

@@ -1,7 +1,63 @@
-.github/*
-docs/*
+# --- Repo meta / non-plugin artifacts ---
+.github/
+docs/
+
+# --- Runtime logs / generated files ---
 logs/upload.log
-logs/index.php
 logs/error.log
+logs/index.php
 logs/.htaccess
+
+# --- Local install / lock files ---
 install.lock
+
+# --- AI editors / assistants (rules, prompts, memories, local config) ---
+# Claude Code
+.claude/
+.claude.json
+.claude.jsonl
+.claudeignore
+.clauderules
+CLAUDE.md
+
+# Cursor
+.cursor/
+.cursorrules
+.cursorignore
+
+# Windsurf
+.windsurf/
+.windsurfrules
+
+# Cline (VS Code)
+.cline/
+.clinerules
+
+# Roo Code
+.roo/
+.roorules
+
+# Aider
+.aider/
+.aider*
+
+# Continue (VS Code)
+.continue/
+
+# Codeium
+.codeium/
+
+# Tabnine
+.tabnine/
+
+# Supermaven
+.supermaven/
+
+# Generic prompt/rules files
+prompts/
+.prompts/
+**/*.prompt
+**/*.prompt.*
+**/*prompt*
+**/*rules*
+**/*memory*
