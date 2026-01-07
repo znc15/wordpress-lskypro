@@ -53,6 +53,11 @@ class LskyProRemote {
         }
 
         try {
+        // 注入“由哪篇文章触发”的上传日志上下文（写入 logs/upload.log 与 logs/error.log）。
+        if ($this->uploader && method_exists($this->uploader, 'setUploadLogContextFromPost')) {
+            $this->uploader->setUploadLogContextFromPost($post_id, 'post_remote_images');
+        }
+
         $content = get_post_field('post_content', $post_id);
         if (empty($content)) {
             $this->error = '文章内容为空';
@@ -70,7 +75,10 @@ class LskyProRemote {
         $updated = false;
         
         // 获取已处理的图片URL映射
-        $processed_urls = get_post_meta($post_id, '_lsky_pro_processed_urls', true) ?: array();
+        $processed_urls = get_post_meta($post_id, '_lsky_pro_processed_urls', true);
+        if (!is_array($processed_urls)) {
+            $processed_urls = array();
+        }
 
         // 增量持久化映射：避免中途超时导致“已上传但未落库”，重试重复上传。
         $persist_processed_urls = function() use ($post_id, &$processed_urls) {
@@ -147,16 +155,41 @@ class LskyProRemote {
         } else {
             error_log("LskyPro: 文章 {$post_id} 中未找到需要处理的图片");
         }
+
+        // 关键：即使内容没有发生替换（例如重复图片/已是图床图片），也要把映射写入数据库。
+        // 否则下次遇到同样的 URL 可能会再次判断/处理，或因未落库导致状态不一致。
+        $persist_processed_urls();
         
         // 如果有更新，保存文章内容和已处理列表
         if ($updated) {
             error_log("LskyPro: 更新文章 {$post_id} 内容");
-            
-            // 更新文章内容
-            wp_update_post(array(
-                'ID' => $post_id,
-                'post_content' => $content
-            ));
+
+            // wp_update_post 会再次触发 save_post 等钩子
+            // 写入或清空封面/特色图等自定义字段。二次更新时没有这些字段，会导致用户手动填写的外链封面丢失。
+            // 因此改为直接更新 posts 表并清理缓存。
+            global $wpdb;
+            $modified = function_exists('current_time') ? current_time('mysql') : gmdate('Y-m-d H:i:s');
+            $modified_gmt = function_exists('current_time') ? current_time('mysql', true) : gmdate('Y-m-d H:i:s');
+
+            $updated_rows = $wpdb->update(
+                $wpdb->posts,
+                array(
+                    'post_content' => $content,
+                    'post_modified' => $modified,
+                    'post_modified_gmt' => $modified_gmt,
+                ),
+                array('ID' => $post_id),
+                array('%s', '%s', '%s'),
+                array('%d')
+            );
+
+            if ($updated_rows === false) {
+                error_log("LskyPro: 更新文章 {$post_id} 失败 - 数据库更新失败");
+            } else {
+                if (function_exists('clean_post_cache')) {
+                    clean_post_cache($post_id);
+                }
+            }
 
             error_log("LskyPro: 文章处理完成 - 成功: {$this->processed}, 失败: {$this->failed}");
         }
@@ -164,6 +197,9 @@ class LskyProRemote {
         return true;
 
         } finally {
+            if ($this->uploader && method_exists($this->uploader, 'clearUploadLogContext')) {
+                $this->uploader->clearUploadLogContext();
+            }
             // 无论成功/失败都释放锁，避免阻塞后续处理。
             delete_post_meta($post_id, $lock_meta_key);
         }

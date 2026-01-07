@@ -201,8 +201,10 @@
         });
 
         $('#progressModal').on('hidden.bs.modal', function () {
-            if (isProcessing && progressModal) {
-                progressModal.show();
+            // 允许用户关闭对话框；关闭即视为停止处理，避免反复自动弹出。
+            if (isProcessing) {
+                shouldStop = true;
+                api.addLog('已关闭对话框，正在停止处理...');
             }
         });
     });

@@ -19,6 +19,7 @@ class LskyProUploader {
     private $requirements = array();
     private $last_request_context = array();
     private $last_uploaded_photo_id = null;
+    private $upload_log_context = array();
 
     use LskyProUploaderLoggingTrait;
     use LskyProUploaderRequirementsTrait;
@@ -36,6 +37,43 @@ class LskyProUploader {
         
         // 检查环境要求
         $this->checkRequirements();
+    }
+
+    /**
+     * 设置上传日志上下文（例如：由哪篇文章触发）。
+     * 该上下文会被写入 logs/upload.log 与 logs/error.log。
+     */
+    public function setUploadLogContext($context) {
+        $this->upload_log_context = is_array($context) ? $context : array();
+    }
+
+    public function clearUploadLogContext() {
+        $this->upload_log_context = array();
+    }
+
+    public function setUploadLogContextFromPost($post_id, $source = '') {
+        $post_id = (int) $post_id;
+        if ($post_id <= 0) {
+            $this->upload_log_context = array();
+            return;
+        }
+
+        $title = '';
+        $url = '';
+        if (function_exists('get_the_title')) {
+            $title = (string) get_the_title($post_id);
+        }
+        if (function_exists('get_permalink')) {
+            $url = (string) get_permalink($post_id);
+        }
+
+        $this->upload_log_context = array(
+            'trigger' => 'post',
+            'source' => is_string($source) ? $source : '',
+            'post_id' => $post_id,
+            'post_title' => $title,
+            'post_url' => $url,
+        );
     }
     
     /**
@@ -182,7 +220,7 @@ class LskyProUploader {
     public function upload($file_path) {
         if (empty($this->api_url) || empty($this->token)) {
             $this->error = '未配置API地址或Token';
-            $this->logError($file_path, $this->error);
+            $this->logError($file_path, $this->error, $this->upload_log_context);
             return false;
         }
 
@@ -229,7 +267,7 @@ class LskyProUploader {
         $image_info = $this->checkImageFile($file_path);
         if ($image_info === false) {
             $this->debug_log('图片检查失败: ' . $this->error);
-            $this->logError($file_path, $this->error);
+            $this->logError($file_path, $this->error, $this->upload_log_context);
             return false;
         }
 
@@ -246,6 +284,7 @@ class LskyProUploader {
         $this->setUploadRequestContext(array(
             'url' => $upload_url,
             'method' => 'POST',
+            'trigger' => $this->upload_log_context,
             'fields' => array(
                 'storage_id' => (int) $storage_id,
                 'is_public' => $is_public ? 1 : 0,
@@ -377,7 +416,8 @@ class LskyProUploader {
 
             $this->logError(
                 $file_path,
-                $this->error . sprintf('；errno=%d；请求：%s；curlinfo：%s', $curl_errno, $upload_url, substr($info_json, 0, 800))
+                $this->error . sprintf('；errno=%d；请求：%s；curlinfo：%s', $curl_errno, $upload_url, substr($info_json, 0, 800)),
+                $this->upload_log_context
             );
             $ctx = $this->formatLastRequestContextForError();
             if ($ctx !== '') {
@@ -390,7 +430,8 @@ class LskyProUploader {
             $this->error = '服务器没有响应';
             $this->logError(
                 $file_path,
-                $this->error . sprintf('；请求：%s；HTTP：%d', $upload_url, $http_code)
+                $this->error . sprintf('；请求：%s；HTTP：%d', $upload_url, $http_code),
+                $this->upload_log_context
             );
             $ctx = $this->formatLastRequestContextForError();
             if ($ctx !== '') {
@@ -407,7 +448,8 @@ class LskyProUploader {
             $this->error = '无效的API响应格式';
             $this->logError(
                 $file_path,
-                $this->error . sprintf('；请求：%s；HTTP：%d；响应片段：%s', $upload_url, $http_code, $response_snippet)
+                $this->error . sprintf('；请求：%s；HTTP：%d；响应片段：%s', $upload_url, $http_code, $response_snippet),
+                $this->upload_log_context
             );
             $ctx = $this->formatLastRequestContextForError();
             if ($ctx !== '') {
@@ -422,7 +464,8 @@ class LskyProUploader {
             $this->error = sprintf('HTTP错误(%d): %s', $http_code, $error_message);
             $this->logError(
                 $file_path,
-                $this->error . sprintf('；请求：%s；响应片段：%s', $upload_url, $response_snippet)
+                $this->error . sprintf('；请求：%s；响应片段：%s', $upload_url, $response_snippet),
+                $this->upload_log_context
             );
             $ctx = $this->formatLastRequestContextForError();
             if ($ctx !== '') {
@@ -436,7 +479,8 @@ class LskyProUploader {
             $this->error = '上传失败: ' . ($result['message'] ?? '未知错误');
             $this->logError(
                 $file_path,
-                $this->error . sprintf('；请求：%s；HTTP：%d；响应片段：%s', $upload_url, $http_code, $response_snippet)
+                $this->error . sprintf('；请求：%s；HTTP：%d；响应片段：%s', $upload_url, $http_code, $response_snippet),
+                $this->upload_log_context
             );
             $ctx = $this->formatLastRequestContextForError();
             if ($ctx !== '') {
@@ -538,7 +582,8 @@ class LskyProUploader {
 
             $this->logError(
                 $file_path,
-                $this->error . sprintf('；请求：%s；响应片段：%s', $upload_url, $response_snippet)
+                $this->error . sprintf('；请求：%s；响应片段：%s', $upload_url, $response_snippet),
+                $this->upload_log_context
             );
             $ctx = $this->formatLastRequestContextForError();
             if ($ctx !== '') {
@@ -557,7 +602,7 @@ class LskyProUploader {
         }
         
         // 记录成功
-        $this->logSuccess(basename($file_path), $image_url);
+        $this->logSuccess(basename($file_path), $image_url, $this->upload_log_context);
         $this->debug_log('上传成功，图片URL: ' . $image_url);
         
         return $image_url;

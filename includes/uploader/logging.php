@@ -53,11 +53,16 @@ trait LskyProUploaderLoggingTrait {
 
     private function logSuccess($filename, $url) {
         $log_file = $this->log_dir . '/upload.log';
+        $context_suffix = '';
+        if (func_num_args() >= 3) {
+            $context_suffix = $this->formatUploadLogContext(func_get_arg(2));
+        }
         $log_message = sprintf(
-            "[%s] 成功：%s => %s\n",
+            "[%s] 成功：%s => %s%s\n",
             date('Y-m-d H:i:s'),
             $filename,
-            $url
+            $url,
+            $context_suffix
         );
 
         if (file_put_contents($log_file, $log_message, FILE_APPEND | LOCK_EX) === false) {
@@ -67,16 +72,60 @@ trait LskyProUploaderLoggingTrait {
 
     private function logError($filename, $error) {
         $log_file = $this->log_dir . '/error.log';
+        $context_suffix = '';
+        if (func_num_args() >= 3) {
+            $context_suffix = $this->formatUploadLogContext(func_get_arg(2));
+        }
         $log_message = sprintf(
-            "[%s] 失败：%s - 错误：%s\n",
+            "[%s] 失败：%s - 错误：%s%s\n",
             date('Y-m-d H:i:s'),
             basename($filename),
-            $error
+            $error,
+            $context_suffix
         );
 
         if (file_put_contents($log_file, $log_message, FILE_APPEND | LOCK_EX) === false) {
             error_log('写入错误日志失败');
         }
+    }
+
+    private function formatUploadLogContext($context) {
+        if (!is_array($context) || empty($context)) {
+            return '';
+        }
+
+        // 目前主要用于“文章触发上传”的定位。
+        $source = isset($context['source']) ? (string) $context['source'] : '';
+        $trigger = isset($context['trigger']) ? (string) $context['trigger'] : '';
+        $post_id = isset($context['post_id']) ? (int) $context['post_id'] : 0;
+        $post_title = isset($context['post_title']) ? (string) $context['post_title'] : '';
+        $post_url = isset($context['post_url']) ? (string) $context['post_url'] : '';
+
+        // 清理换行，避免破坏日志格式。
+        $post_title = str_replace(array("\r", "\n"), ' ', $post_title);
+        $post_url = str_replace(array("\r", "\n"), '', $post_url);
+
+        $parts = array();
+        if ($source !== '') {
+            $parts[] = '来源:' . $source;
+        }
+
+        if ($trigger === 'post' && $post_id > 0) {
+            $label = '文章:' . $post_id;
+            if ($post_title !== '') {
+                $label .= ' ' . $post_title;
+            }
+            if ($post_url !== '') {
+                $label .= ' ' . $post_url;
+            }
+            $parts[] = $label;
+        }
+
+        if (empty($parts)) {
+            return '';
+        }
+
+        return ' | ' . implode(' | ', $parts);
     }
 
     public function getLogContent($type = 'upload') {

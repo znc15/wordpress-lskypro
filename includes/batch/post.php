@@ -7,6 +7,14 @@ if (!defined('ABSPATH')) {
 if (!trait_exists('LskyProBatch_Post', false)) {
     trait LskyProBatch_Post {
         /**
+         * 文章批处理失败标记 meta key（1 表示该文章批处理中出现过失败）
+         *
+         * 说明：文章批处理是按“未完成文章”分页取前 N 条；若失败不标记完成，会导致一直重复同一批文章。
+         * 这里将失败文章也标记为完成，同时写入失败标记，避免死循环并便于后续排查/重置后重跑。
+         */
+        private $post_failed_meta_key = '_lsky_pro_post_batch_failed';
+
+        /**
          * 处理文章中的图片
          */
         private function process_batch() {
@@ -116,19 +124,33 @@ if (!trait_exists('LskyProBatch_Post', false)) {
                 }
 
                 if ($content !== $post->post_content) {
-                    wp_update_post(array(
-                        'ID' => $post->ID,
-                        'post_content' => $content
-                    ));
-                }
+                    $modified = function_exists('current_time') ? current_time('mysql') : gmdate('Y-m-d H:i:s');
+                    $modified_gmt = function_exists('current_time') ? current_time('mysql', true) : gmdate('Y-m-d H:i:s');
 
-                // 若该文章已不存在非图床图片（或全部替换成功），标记为完成，避免下次从头重复处理
-                if (!$had_failure) {
-                    // 注意：即使一开始就全是图床图片，也应标记为完成
-                    if ($all_images_already_lsky || ($content !== $post->post_content)) {
-                        update_post_meta($post->ID, $this->post_done_meta_key, 1);
+                    $wpdb->update(
+                        $wpdb->posts,
+                        array(
+                            'post_content' => $content,
+                            'post_modified' => $modified,
+                            'post_modified_gmt' => $modified_gmt,
+                        ),
+                        array('ID' => (int) $post->ID),
+                        array('%s', '%s', '%s'),
+                        array('%d')
+                    );
+
+                    if (function_exists('clean_post_cache')) {
+                        clean_post_cache((int) $post->ID);
                     }
                 }
+
+                // 标记文章为完成，避免失败导致一直重复同一批文章（死循环）
+                // - 即使存在失败，也先出队；失败信息用 meta 标记，用户可“重置进度”后再次重跑。
+                // - 若文章本来就全是图床图片，也应标记为完成。
+                if ($had_failure) {
+                    update_post_meta($post->ID, $this->post_failed_meta_key, 1);
+                }
+                update_post_meta($post->ID, $this->post_done_meta_key, 1);
             }
 
             $remaining_after = (int) $wpdb->get_var(

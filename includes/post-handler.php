@@ -12,7 +12,7 @@ class LskyProPostHandler {
         $this->remote = new LskyProRemote();
         
         // 添加保存文章时的钩子，优先级设为较低以确保在其他操作后执行
-        add_action('save_post', array($this, 'handle_post_save'), 999, 3);
+        add_action('save_post', array($this, 'handle_post_save'), 99999, 3);
     }
     
     /**
@@ -33,7 +33,15 @@ class LskyProPostHandler {
         // 标记文章正在处理
         $this->processing[$post_id] = true;
         
-        error_log("LskyPro: 文章保存触发处理 - ID: {$post_id}, 状态: {$post->post_status}");
+        $post_title = is_object($post) && isset($post->post_title) ? (string) $post->post_title : '';
+        $post_title = str_replace(array("\r", "\n"), ' ', $post_title);
+        error_log("LskyPro: 文章保存触发处理 - ID: {$post_id}, 标题: {$post_title}, 状态: {$post->post_status}");
+
+        // 兜底保护：某些主题把封面/特色图外链存在 zib_other_data。
+        // 远程图片处理可能会在保存流程中触发额外的更新，从而导致主题 meta 被意外清空。
+        // 这里在处理前备份，处理后若发现被清空则恢复（仅在“原本有值但处理后变空”时才恢复）。
+        $zib_other_data_before = get_post_meta($post_id, 'zib_other_data', true);
+        $had_zib_other_data_before = !empty($zib_other_data_before);
         
         // 获取选项设置
         $options = get_option('lsky_pro_options');
@@ -72,6 +80,14 @@ class LskyProPostHandler {
             }
         } catch (Exception $e) {
             error_log("LskyPro: 文章处理异常 - " . $e->getMessage());
+        }
+
+        if ($had_zib_other_data_before) {
+            $zib_other_data_after = get_post_meta($post_id, 'zib_other_data', true);
+            if (empty($zib_other_data_after)) {
+                update_post_meta($post_id, 'zib_other_data', $zib_other_data_before);
+                error_log("LskyPro: 文章 {$post_id} 的 zib_other_data 被意外清空，已尝试恢复");
+            }
         }
         
         // 处理完成后移除标记

@@ -81,14 +81,22 @@ function lsky_pro_admin_scripts($hook) {
 
     switch ($current_page) {
         case 'lsky-pro-batch':
-            wp_enqueue_style('lsky-pro-batch', plugins_url('assets/css/batch.css', LSKY_PRO_PLUGIN_FILE), array($bootstrap_handle, 'lsky-pro-admin'), null);
-            wp_enqueue_script('lsky-pro-admin-base', plugins_url('assets/js/admin/base.js', LSKY_PRO_PLUGIN_FILE), $base_deps, null, true);
+            $batch_css_path = trailingslashit(LSKY_PRO_PLUGIN_DIR) . 'assets/css/batch.css';
+            $base_js_path = trailingslashit(LSKY_PRO_PLUGIN_DIR) . 'assets/js/admin/base.js';
+            $batch_js_path = trailingslashit(LSKY_PRO_PLUGIN_DIR) . 'assets/js/admin/batch.js';
+
+            $batch_css_ver = file_exists($batch_css_path) ? (string) filemtime($batch_css_path) : null;
+            $base_js_ver = file_exists($base_js_path) ? (string) filemtime($base_js_path) : null;
+            $batch_js_ver = file_exists($batch_js_path) ? (string) filemtime($batch_js_path) : null;
+
+            wp_enqueue_style('lsky-pro-batch', plugins_url('assets/css/batch.css', LSKY_PRO_PLUGIN_FILE), array($bootstrap_handle, 'lsky-pro-admin'), $batch_css_ver);
+            wp_enqueue_script('lsky-pro-admin-base', plugins_url('assets/js/admin/base.js', LSKY_PRO_PLUGIN_FILE), $base_deps, $base_js_ver, true);
             wp_localize_script('lsky-pro-admin-base', 'lskyProData', array(
                 'nonce' => wp_create_nonce('lsky_pro_ajax'),
                 'batchNonce' => wp_create_nonce('lsky_pro_batch'),
                 'ajaxurl' => admin_url('admin-ajax.php')
             ));
-            wp_enqueue_script('lsky-pro-admin-batch', plugins_url('assets/js/admin/batch.js', LSKY_PRO_PLUGIN_FILE), array('lsky-pro-admin-base'), null, true);
+            wp_enqueue_script('lsky-pro-admin-batch', plugins_url('assets/js/admin/batch.js', LSKY_PRO_PLUGIN_FILE), array('lsky-pro-admin-base'), $batch_js_ver, true);
             break;
 
         case 'lsky-pro-settings':
