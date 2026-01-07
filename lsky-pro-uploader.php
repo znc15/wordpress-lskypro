@@ -3,7 +3,7 @@
 Plugin Name: LskyPro For WordPress
 Plugin URI: https://www.littlesheep.cc
 Description: 自动将WordPress上传的图片同步到LskyPro图床
-Version: 1.0.0
+Version: 1.1.0
 Author: LittleSheep
 Author URI: https://www.littlesheep.cc
 */

@@ -100,14 +100,14 @@ function lsky_pro_admin_scripts($hook) {
             break;
 
         case 'lsky-pro-settings':
-            wp_enqueue_script('lsky-pro-admin-base', plugins_url('assets/js/admin/base.js', LSKY_PRO_PLUGIN_FILE), $base_deps, '1.0.1', true);
+            wp_enqueue_script('lsky-pro-admin-base', plugins_url('assets/js/admin/base.js', LSKY_PRO_PLUGIN_FILE), $base_deps, '1.1.0', true);
             wp_localize_script('lsky-pro-admin-base', 'lskyProData', array(
                 'nonce' => wp_create_nonce('lsky_pro_ajax'),
                 'batchNonce' => wp_create_nonce('lsky_pro_batch'),
                 'ajaxurl' => admin_url('admin-ajax.php')
             ));
-            wp_enqueue_script('lsky-pro-admin-info', plugins_url('assets/js/admin/info.js', LSKY_PRO_PLUGIN_FILE), array('lsky-pro-admin-base'), '1.0.1', true);
-            wp_enqueue_script('lsky-pro-admin-update', plugins_url('assets/js/admin/update.js', LSKY_PRO_PLUGIN_FILE), array('lsky-pro-admin-base'), '1.0.1', true);
+            wp_enqueue_script('lsky-pro-admin-info', plugins_url('assets/js/admin/info.js', LSKY_PRO_PLUGIN_FILE), array('lsky-pro-admin-base'), '1.1.0', true);
+            wp_enqueue_script('lsky-pro-admin-update', plugins_url('assets/js/admin/update.js', LSKY_PRO_PLUGIN_FILE), array('lsky-pro-admin-base'), '1.1.0', true);
             break;
 
         case 'lsky-pro-config':
