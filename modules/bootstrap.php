@@ -50,9 +50,7 @@ require_once LSKY_PRO_PLUGIN_DIR . 'includes/upload-handler.php';
 require_once LSKY_PRO_PLUGIN_DIR . 'includes/post-handler.php';
 require_once LSKY_PRO_PLUGIN_DIR . 'includes/batch.php';
 require_once LSKY_PRO_PLUGIN_DIR . 'includes/api.php';
-require_once LSKY_PRO_PLUGIN_DIR . 'includes/cron-process-images.php';
 require_once LSKY_PRO_PLUGIN_DIR . 'setup/setup.php';
-require_once LSKY_PRO_PLUGIN_DIR . 'setup/setup-2.php';
 
 // 加载拆分后的功能模块
 require_once LSKY_PRO_PLUGIN_DIR . 'modules/settings.php';

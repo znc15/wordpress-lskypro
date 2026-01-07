@@ -97,15 +97,6 @@ function lsky_pro_validate_settings($input) {
     });
     $clean['exclude_referer_contains'] = $lines ? implode("\n", $lines) . "\n" : '';
 
-    // Cron 密码（如果有被提交）：只保存 hash 到独立 option
-    if (!empty($input['cron_password'])) {
-        $current_hash = (string) get_option('lsky_pro_cron_password', '');
-        $new_hash = wp_hash_password((string) $input['cron_password']);
-        if ($current_hash !== $new_hash) {
-            update_option('lsky_pro_cron_password', $new_hash);
-        }
-    }
-
     // 若 URL/Token 不完整，不做远端验证，直接保存清洗后的值
     if ($api_url === '' || $token === '') {
         return array_merge($previous, $clean);

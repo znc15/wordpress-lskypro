@@ -18,6 +18,19 @@ class LskyProSetup {
         // 添加 AJAX 处理程序
         add_action('wp_ajax_lsky_pro_setup', array($this, 'handle_ajax_setup'));
     }
+
+    private function maybe_create_install_lock() {
+        if (file_exists($this->install_lock)) {
+            return;
+        }
+
+        $plugin_dir = dirname($this->install_lock);
+        if (!is_dir($plugin_dir) || !is_writable($plugin_dir)) {
+            return;
+        }
+
+        @file_put_contents($this->install_lock, date('Y-m-d H:i:s'));
+    }
     
     public function handle_setup_submission() {
         // 检查是否有表单提交
@@ -113,9 +126,9 @@ class LskyProSetup {
         
         // 保存配置
         update_option('lsky_pro_options', $options);
-        
-        // 设置重定向标记
-        set_transient('lsky_pro_show_setup_2', true, 30);
+
+        // 旧版本在这里进入“计划任务配置”步骤；现在直接标记为已完成安装
+        $this->maybe_create_install_lock();
         
         // 添加成功消息
         add_settings_error(
@@ -148,11 +161,13 @@ class LskyProSetup {
             $is_configured = false;
         }
         
-        // 如果基础设置已完成但还没有install.lock，跳转到setup-2
+        // 如果基础设置已完成：现在直接进入配置页
         if ($is_configured) {
+            // 兼容历史：如果配置已存在但 lock 缺失，尝试补齐，避免后台一直被重定向到向导页
+            $this->maybe_create_install_lock();
             ?>
             <script>
-                window.location.href = '<?php echo esc_js(admin_url('admin.php?page=lsky-pro-setup-2')); ?>';
+                window.location.href = '<?php echo esc_js(admin_url('admin.php?page=lsky-pro-config')); ?>';
             </script>
             <?php
             return;
@@ -301,14 +316,14 @@ class LskyProSetup {
         
         // 保存配置
         update_option('lsky_pro_options', $options);
-        
-        // 设置临时标记
-        set_transient('lsky_pro_show_setup_2', true, 30);
+
+        // 旧版本在这里进入“计划任务配置”步骤；现在直接标记为已完成安装
+        $this->maybe_create_install_lock();
         
         // 返回重定向信息
         wp_send_json_success(array(
-            'message' => '基础配置保存成功！即将进入计划任务配置...',
-            'redirect' => admin_url('admin.php?page=lsky-pro-setup-2')
+            'message' => '基础配置保存成功！',
+            'redirect' => admin_url('admin.php?page=lsky-pro-config')
         ));
     }
 }
