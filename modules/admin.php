@@ -58,11 +58,6 @@ function lsky_pro_add_admin_menu() {
 add_action('admin_menu', 'lsky_pro_add_admin_menu');
 
 function lsky_pro_admin_scripts($hook) {
-    if ($hook === 'admin_page_lsky-pro-setup') {
-        lsky_pro_enqueue_setup_assets();
-        return;
-    }
-
     $current_page = isset($_GET['page']) ? sanitize_key($_GET['page']) : '';
     $lsky_pages = array('lsky-pro-settings', 'lsky-pro-batch', 'lsky-pro-config', 'lsky-pro-changelog');
 
@@ -100,14 +95,14 @@ function lsky_pro_admin_scripts($hook) {
             break;
 
         case 'lsky-pro-settings':
-            wp_enqueue_script('lsky-pro-admin-base', plugins_url('assets/js/admin/base.js', LSKY_PRO_PLUGIN_FILE), $base_deps, '1.1.0', true);
+            wp_enqueue_script('lsky-pro-admin-base', plugins_url('assets/js/admin/base.js', LSKY_PRO_PLUGIN_FILE), $base_deps, '1.0.1', true);
             wp_localize_script('lsky-pro-admin-base', 'lskyProData', array(
                 'nonce' => wp_create_nonce('lsky_pro_ajax'),
                 'batchNonce' => wp_create_nonce('lsky_pro_batch'),
                 'ajaxurl' => admin_url('admin-ajax.php')
             ));
-            wp_enqueue_script('lsky-pro-admin-info', plugins_url('assets/js/admin/info.js', LSKY_PRO_PLUGIN_FILE), array('lsky-pro-admin-base'), '1.1.0', true);
-            wp_enqueue_script('lsky-pro-admin-update', plugins_url('assets/js/admin/update.js', LSKY_PRO_PLUGIN_FILE), array('lsky-pro-admin-base'), '1.1.0', true);
+            wp_enqueue_script('lsky-pro-admin-info', plugins_url('assets/js/admin/info.js', LSKY_PRO_PLUGIN_FILE), array('lsky-pro-admin-base'), '1.0.1', true);
+            wp_enqueue_script('lsky-pro-admin-update', plugins_url('assets/js/admin/update.js', LSKY_PRO_PLUGIN_FILE), array('lsky-pro-admin-base'), '1.0.1', true);
             break;
 
         case 'lsky-pro-config':
@@ -120,16 +115,6 @@ function lsky_pro_admin_scripts($hook) {
     }
 }
 add_action('admin_enqueue_scripts', 'lsky_pro_admin_scripts');
-
-function lsky_pro_enqueue_setup_assets() {
-    $bootstrap_handle = lsky_pro_enqueue_bootstrap();
-    wp_enqueue_style('lsky-pro-style', plugins_url('assets/css/style.css', LSKY_PRO_PLUGIN_FILE));
-    wp_enqueue_script('lsky-pro-setup-script', plugins_url('assets/js/setup.js', LSKY_PRO_PLUGIN_FILE), array('jquery', $bootstrap_handle), null, true);
-    wp_localize_script('lsky-pro-setup-script', 'lskyProSetupData', array(
-        'nonce' => wp_create_nonce('lsky_pro_setup'),
-        'ajaxurl' => admin_url('admin-ajax.php')
-    ));
-}
 
 function lsky_pro_render_page($title, $template) {
     ?>
