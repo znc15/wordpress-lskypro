@@ -3,10 +3,7 @@
 docs/
 
 # --- Runtime logs / generated files ---
-logs/upload.log
-logs/error.log
-logs/index.php
-logs/.htaccess
+logs/
 
 # --- Local install / lock files ---
 install.lock

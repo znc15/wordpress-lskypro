@@ -93,6 +93,9 @@ final class Settings
         $clean['user_role_group'] = $sanitizeRoleGroup($input['user_role_group'] ?? []);
 
         $clean['delete_remote_images_on_post_delete'] = (!empty($input['delete_remote_images_on_post_delete']) && (string) $input['delete_remote_images_on_post_delete'] === '1') ? 1 : 0;
+        $clean['delete_wp_attachments_on_post_delete'] = (!empty($input['delete_wp_attachments_on_post_delete']) && (string) $input['delete_wp_attachments_on_post_delete'] === '1') ? 1 : 0;
+
+        $clean['delete_local_files_after_upload'] = (!empty($input['delete_local_files_after_upload']) && (string) $input['delete_local_files_after_upload'] === '1') ? 1 : 0;
 
         $clean['process_remote_images'] = (!empty($input['process_remote_images']) && (string) $input['process_remote_images'] === '1') ? 1 : 0;
 
@@ -233,6 +236,8 @@ final class Settings
             ['id' => 'user_role_group', 'title' => '普通用户组（WP 角色）', 'callback' => [$this, 'user_role_group_callback']],
             ['id' => 'process_remote_images', 'title' => '远程图片处理', 'callback' => [$this, 'process_remote_images_callback']],
             ['id' => 'delete_remote_images_on_post_delete', 'title' => '删除文章时删除图床图片', 'callback' => [$this, 'delete_remote_images_on_post_delete_callback']],
+            ['id' => 'delete_wp_attachments_on_post_delete', 'title' => '删除文章时删除媒体库附件', 'callback' => [$this, 'delete_wp_attachments_on_post_delete_callback']],
+            ['id' => 'delete_local_files_after_upload', 'title' => '上传后删除本地文件', 'callback' => [$this, 'delete_local_files_after_upload_callback']],
             ['id' => 'exclude_site_icon', 'title' => '排除站点图标', 'callback' => [$this, 'exclude_site_icon_callback']],
             ['id' => 'exclude_ajax_actions', 'title' => '排除头像上传（AJAX action）', 'callback' => [$this, 'exclude_ajax_actions_callback']],
             ['id' => 'exclude_referer_contains', 'title' => '排除头像上传（Referer 关键字）', 'callback' => [$this, 'exclude_referer_contains_callback']],
@@ -499,9 +504,35 @@ final class Settings
         ?>
         <label>
             <input type="checkbox" name="lsky_pro_options[delete_remote_images_on_post_delete]" value="1" <?php \checked($checked); ?>>
-            文章被永久删除时，同时删除该文章关联的图床图片
+            文章被永久删除时（清空回收站/彻底删除），同时删除该文章关联的图床图片
         </label>
         <p class="description">包含：插件处理外链/本站媒体图片时上传到图床并记录的 photo_id；文章内容里引用到的媒体库附件（若附件已写入 <code>_lsky_pro_photo_id</code>）。注意：若同一附件/图床图在多个文章复用，开启后会一起删。</p>
+        <?php
+    }
+
+    public function delete_wp_attachments_on_post_delete_callback(): void
+    {
+        $options = Options::normalized();
+        $checked = isset($options['delete_wp_attachments_on_post_delete']) && (int) $options['delete_wp_attachments_on_post_delete'] === 1;
+        ?>
+        <label>
+            <input type="checkbox" name="lsky_pro_options[delete_wp_attachments_on_post_delete]" value="1" <?php \checked($checked); ?>>
+            文章被永久删除时，同时删除该文章关联/引用到的媒体库附件（wp_delete_attachment）
+        </label>
+        <p class="description">危险操作：如果同一附件被多个文章复用，开启后会导致其他文章也失去该媒体。建议仅在你确认站点图片不复用或可接受的情况下开启。</p>
+        <?php
+    }
+
+    public function delete_local_files_after_upload_callback(): void
+    {
+        $options = Options::normalized();
+        $checked = isset($options['delete_local_files_after_upload']) && (int) $options['delete_local_files_after_upload'] === 1;
+        ?>
+        <label>
+            <input type="checkbox" name="lsky_pro_options[delete_local_files_after_upload]" value="1" <?php \checked($checked); ?>>
+            图片成功上传到图床并写入附件信息后，删除本地 uploads 原图与缩略图
+        </label>
+        <p class="description">谨慎开启：开启后媒体库中将不再保留本地文件，仅保留图床 URL（通过 <code>wp_get_attachment_url</code> 返回）。某些依赖本地文件的功能（如裁剪/重新生成缩略图/离线备份）可能不可用。</p>
         <?php
     }
 

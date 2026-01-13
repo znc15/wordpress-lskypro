@@ -37,6 +37,13 @@ final class Options
             // Post lifecycle
             'delete_remote_images_on_post_delete' => 1,
 
+            // Also delete WordPress media attachments referenced by the post when permanently deleting.
+            // Note: if the same attachment is reused by multiple posts, enabling this will remove it everywhere.
+            'delete_wp_attachments_on_post_delete' => 1,
+
+            // Upload lifecycle
+            'delete_local_files_after_upload' => 0,
+
             'exclude_site_icon' => 1,
             'exclude_ajax_actions' => "avatar\n",
             'exclude_referer_contains' => '',

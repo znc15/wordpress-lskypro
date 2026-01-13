@@ -5,11 +5,15 @@ declare(strict_types=1);
 namespace LskyPro;
 
 use LskyPro\Support\UploadExclusions;
+use LskyPro\Support\Options;
 
 final class UploadHandler
 {
+    private string $uploadLogFile;
+
     public function __construct()
     {
+        $this->uploadLogFile = \rtrim((string) \LSKY_PRO_PLUGIN_DIR, '/\\') . '/logs/upload.log';
         \add_filter('wp_handle_upload', [$this, 'handle_upload'], 10, 1);
         \add_filter('wp_handle_upload_prefilter', [$this, 'pre_upload']);
         \add_filter('wp_get_attachment_url', [$this, 'filter_attachment_url'], 10, 2);
@@ -48,6 +52,26 @@ final class UploadHandler
         );
 
         \file_put_contents($logFile, $logMessage, FILE_APPEND | LOCK_EX);
+    }
+
+    private function writeUploadLog(string $message, array $context = []): void
+    {
+        $dir = \dirname($this->uploadLogFile);
+        if (!\is_dir($dir)) {
+            \wp_mkdir_p($dir);
+        }
+
+        $time = \date('Y-m-d H:i:s');
+        $line = '[' . $time . '] ' . $message;
+        if (!empty($context)) {
+            $json = \wp_json_encode($context, \JSON_UNESCAPED_UNICODE | \JSON_UNESCAPED_SLASHES);
+            if (\is_string($json) && $json !== '') {
+                $line .= ' ' . $json;
+            }
+        }
+        $line .= "\n";
+
+        @\file_put_contents($this->uploadLogFile, $line, FILE_APPEND | LOCK_EX);
     }
 
     private function addAdminNotice(string $type, string $message): void
@@ -246,6 +270,8 @@ final class UploadHandler
                     \delete_transient($pendingKey);
                 }
 
+                $this->maybeDeleteLocalFilesAfterLskyUpload($attachmentId, $metadata, $attachedFilePath);
+
                 return $metadata;
             }
         }
@@ -267,7 +293,101 @@ final class UploadHandler
             }
         }
 
+        $this->maybeDeleteLocalFilesAfterLskyUpload($attachmentId, $metadata, $attachedFilePath);
+
         return $metadata;
+    }
+
+    private function maybeDeleteLocalFilesAfterLskyUpload(int $attachmentId, array $metadata, string $attachedFilePath): void
+    {
+        $options = Options::normalized();
+        $enabled = !empty($options['delete_local_files_after_upload']);
+        if (!$enabled) {
+            return;
+        }
+
+        $lskyUrl = (string) \get_post_meta($attachmentId, '_lsky_pro_url', true);
+        if ($lskyUrl === '') {
+            $this->writeUploadLog('upload_cleanup: skip (no lsky url)', ['attachment_id' => $attachmentId]);
+            return;
+        }
+
+        if ($attachedFilePath === '') {
+            $this->writeUploadLog('upload_cleanup: skip (no attached file path)', ['attachment_id' => $attachmentId, 'lsky_url' => $lskyUrl]);
+            return;
+        }
+
+        // Safety: only delete files under uploads basedir.
+        $uploads = \wp_upload_dir();
+        $basedir = isset($uploads['basedir']) ? (string) $uploads['basedir'] : '';
+        if ($basedir === '') {
+            $this->writeUploadLog('upload_cleanup: skip (no uploads basedir)', ['attachment_id' => $attachmentId, 'lsky_url' => $lskyUrl]);
+            return;
+        }
+
+        $norm = \function_exists('wp_normalize_path') ? \wp_normalize_path($attachedFilePath) : $attachedFilePath;
+        $baseNorm = \function_exists('wp_normalize_path') ? \wp_normalize_path($basedir) : $basedir;
+        $normCmp = $norm;
+        $baseCmp = $baseNorm;
+        if (\DIRECTORY_SEPARATOR === '\\') {
+            $normCmp = \strtolower($normCmp);
+            $baseCmp = \strtolower($baseCmp);
+        }
+        if ($baseCmp !== '' && \strpos($normCmp, $baseCmp) !== 0) {
+            $this->writeUploadLog('upload_cleanup: skip (not under uploads)', ['attachment_id' => $attachmentId, 'attached_file' => $norm, 'uploads_basedir' => $baseNorm]);
+            return;
+        }
+
+        $filesToDelete = [];
+        if (\is_file($attachedFilePath)) {
+            $filesToDelete[] = $attachedFilePath;
+        }
+
+        // Delete intermediate sizes if present.
+        if (isset($metadata['sizes']) && \is_array($metadata['sizes'])) {
+            $dir = \dirname($attachedFilePath);
+            foreach ($metadata['sizes'] as $size) {
+                if (!\is_array($size) || empty($size['file'])) {
+                    continue;
+                }
+                $fn = (string) $size['file'];
+                if ($fn === '') {
+                    continue;
+                }
+                $p = $dir . DIRECTORY_SEPARATOR . $fn;
+                if (\is_file($p)) {
+                    $filesToDelete[] = $p;
+                }
+            }
+        }
+
+        $filesToDelete = \array_values(\array_unique($filesToDelete));
+        if (empty($filesToDelete)) {
+            $this->writeUploadLog('upload_cleanup: skip (no local files found)', ['attachment_id' => $attachmentId, 'attached_file' => $norm]);
+            return;
+        }
+
+        $this->writeUploadLog('upload_cleanup: deleting local files', ['attachment_id' => $attachmentId, 'files' => $filesToDelete, 'lsky_url' => $lskyUrl]);
+        foreach ($filesToDelete as $p) {
+            // Use WP helper if present.
+            if (\function_exists('wp_delete_file')) {
+                @\wp_delete_file($p);
+            }
+            if (\is_file($p)) {
+                @\unlink($p);
+            }
+        }
+
+        $remaining = [];
+        foreach ($filesToDelete as $p) {
+            if (\is_file($p)) {
+                $remaining[] = $p;
+            }
+        }
+        $this->writeUploadLog('upload_cleanup: done', ['attachment_id' => $attachmentId, 'remaining' => $remaining]);
+
+        // Optional: mark attached file missing to avoid future file ops.
+        // We keep _wp_attached_file as-is for URL generation, but local disk file is removed.
     }
 
     public function handle_delete_attachment(int $attachmentId): void
