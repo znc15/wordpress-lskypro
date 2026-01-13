@@ -35,14 +35,6 @@ LskyPro For WordPress 是一个专为 WordPress 设计的图床插件，可以�
 3. 输入 Token 
 4. 点击"保存配置"完成基础设置 
 
-### 计划任务配置 
-
-1. 基础配置完成后，会进入计划任务配置页面
-2. 设置 Cron 密码用于安全验证 
-3. 根据页面提示设置系统计划任务 
-4. 测试计划任务是否正常运行 
-5. 完成设置 
-
 ## 使用说明
 
 ### 媒体上传 
@@ -83,6 +75,4 @@ LskyPro For WordPress 是一个专为 WordPress 设计的图床插件，可以�
 
 - 作者：LittleSheep 
 - 作者网站：[https://www.littlesheep.cc](https://www.littlesheep.cc) 
-- 插件版本：1.0.0 
-
-感谢您使用 LskyPro For WordPress 插件！
+- 插件版本：1.1.0 

@@ -17,5 +17,22 @@ if (!defined('ABSPATH')) {
 define('LSKY_PRO_PLUGIN_FILE', __FILE__);
 define('LSKY_PRO_PLUGIN_DIR', plugin_dir_path(__FILE__));
 
-// 加载拆分后的模块（类文件/钩子注册等都在 bootstrap 内）
-require_once LSKY_PRO_PLUGIN_DIR . 'modules/bootstrap.php';
+// PSR-4 autoloader: LskyPro\\* => /src/*
+spl_autoload_register(static function (string $class): void {
+    $prefix = 'LskyPro\\';
+    $baseDir = __DIR__ . '/src/';
+
+    if (strncmp($prefix, $class, strlen($prefix)) !== 0) {
+        return;
+    }
+
+    $relative = substr($class, strlen($prefix));
+    $relativePath = str_replace('\\', '/', $relative) . '.php';
+    $file = $baseDir . $relativePath;
+
+    if (is_file($file)) {
+        require $file;
+    }
+});
+
+\LskyPro\Plugin::init();

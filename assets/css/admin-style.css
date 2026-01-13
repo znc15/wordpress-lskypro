@@ -676,7 +676,6 @@ table.widefat {
     border: 1px solid #e5e7eb;
     overflow: hidden;
     transition: all 0.3s ease;
-    height: 100%;
 }
 
 .info-card:hover {
@@ -918,6 +917,352 @@ table.widefat {
     min-height: 90px;
     font-family: monospace;
     resize: vertical;
+}
+
+/* =============================
+   概览页（按截图布局）
+   作用域：.lsky-overview-page
+   ============================= */
+
+.lsky-overview-page #user-info {
+    margin-top: 16px;
+}
+
+.lsky-overview {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.lsky-overview-greeting {
+    padding: 10px 0;
+}
+
+.lsky-overview-greeting-title {
+    font-size: 20px;
+    font-weight: 700;
+    color: #1e293b;
+    line-height: 1.2;
+}
+
+.lsky-overview-greeting-sub {
+    margin-top: 6px;
+    color: #64748b;
+    font-size: 13px;
+}
+
+.lsky-overview-alert {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px 14px;
+    border: 1px solid #facc15;
+    background: #fffbeb;
+    border-radius: 10px;
+}
+
+.lsky-overview-alert-text {
+    color: #b45309;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.lsky-overview-kpis {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 16px;
+}
+
+.lsky-kpi {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    padding: 14px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.lsky-kpi-icon,
+.lsky-action-icon,
+.lsky-limit-icon,
+.lsky-account-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.lsky-kpi-icon i.dashicons,
+.lsky-action-icon i.dashicons,
+.lsky-limit-icon i.dashicons,
+.lsky-account-icon i.dashicons {
+    font-size: 20px;
+    width: 20px;
+    height: 20px;
+}
+
+.tone-blue { background: #e0f2fe; color: #0369a1; }
+.tone-green { background: #dcfce7; color: #166534; }
+.tone-purple { background: #f3e8ff; color: #6b21a8; }
+.tone-orange { background: #ffedd5; color: #9a3412; }
+
+.lsky-kpi-value {
+    font-size: 22px;
+    font-weight: 800;
+    color: #0f172a;
+    line-height: 1;
+}
+
+.lsky-kpi-label {
+    margin-top: 6px;
+    font-size: 12px;
+    color: #64748b;
+    font-weight: 600;
+}
+
+.lsky-overview-actions {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 16px;
+}
+
+.lsky-action-card {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    padding: 14px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    text-decoration: none;
+    transition: all 0.2s ease;
+}
+
+.lsky-action-card:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    transform: translateY(-1px);
+    border-color: #2271b1;
+}
+
+.lsky-action-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: #0f172a;
+}
+
+.lsky-action-sub {
+    margin-top: 4px;
+    font-size: 12px;
+    color: #64748b;
+}
+
+.lsky-mt { margin-top: 16px; }
+
+.lsky-storage-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.lsky-storage-item {
+    background: #f8fafc;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    padding: 12px;
+}
+
+.lsky-storage-label {
+    font-size: 12px;
+    color: #64748b;
+    font-weight: 700;
+}
+
+.lsky-storage-value {
+    margin-top: 6px;
+    font-size: 16px;
+    font-weight: 800;
+    color: #0f172a;
+}
+
+.lsky-storage-progress {
+    margin-top: 14px;
+    width: 100%;
+    height: 10px;
+    background: #e5e7eb;
+    border-radius: 999px;
+    overflow: hidden;
+}
+
+.lsky-storage-progress-bar {
+    height: 100%;
+    background: linear-gradient(90deg, #2271b1 0%, #135e96 100%);
+    border-radius: 999px;
+    transition: width 0.3s ease;
+}
+
+.lsky-storage-foot {
+    margin-top: 8px;
+    text-align: right;
+    font-size: 12px;
+    color: #64748b;
+    font-weight: 700;
+}
+
+.lsky-section-split {
+    margin-top: 14px;
+    padding-top: 14px;
+    border-top: 1px solid #e5e7eb;
+}
+
+.lsky-section-title {
+    margin-bottom: 12px;
+    font-size: 13px;
+    font-weight: 800;
+    color: #1e293b;
+}
+
+.lsky-limit-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+}
+
+.lsky-limit {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: #fff;
+    border: 1px dashed #e5e7eb;
+    border-radius: 12px;
+    padding: 12px;
+}
+
+.lsky-limit-label {
+    font-size: 12px;
+    color: #64748b;
+    font-weight: 700;
+}
+
+.lsky-limit-value {
+    margin-top: 6px;
+    font-size: 14px;
+    color: #0f172a;
+    font-weight: 800;
+}
+
+.lsky-membership {
+    border-radius: 14px;
+    padding: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    color: #fff;
+    background: linear-gradient(135deg, #0f172a 0%, #111827 60%, #1f2937 100%);
+}
+
+.lsky-membership-label {
+    font-size: 12px;
+    opacity: 0.85;
+    font-weight: 700;
+}
+
+.lsky-membership-name {
+    margin-top: 6px;
+    font-size: 18px;
+    font-weight: 800;
+}
+
+.lsky-membership .button {
+    background: rgba(255, 255, 255, 0.18);
+    border-color: rgba(255, 255, 255, 0.35);
+    color: #fff;
+}
+
+.lsky-membership .button:hover {
+    background: rgba(255, 255, 255, 0.24);
+    border-color: rgba(255, 255, 255, 0.45);
+    color: #fff;
+}
+
+.lsky-account-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+}
+
+.lsky-account-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    padding: 12px;
+}
+
+.lsky-account-label {
+    font-size: 12px;
+    color: #64748b;
+    font-weight: 700;
+}
+
+.lsky-account-value {
+    margin-top: 6px;
+    font-size: 14px;
+    color: #0f172a;
+    font-weight: 800;
+    word-break: break-all;
+}
+
+.lsky-overview-footer {
+    margin-top: 4px;
+    padding: 10px 12px;
+    border-top: 1px solid #e5e7eb;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    color: #64748b;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.lsky-overview-footer-left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.lsky-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #22c55e;
+    display: inline-block;
+}
+
+@media (max-width: 1024px) {
+    .lsky-overview-kpis,
+    .lsky-overview-actions {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 600px) {
+    .lsky-overview-kpis,
+    .lsky-overview-actions {
+        grid-template-columns: 1fr;
+    }
+    .lsky-limit-grid,
+    .lsky-account-grid,
+    .lsky-storage-grid {
+        grid-template-columns: 1fr;
+    }
 }
 
 .lsky-input:focus,
