@@ -325,22 +325,43 @@ final class UploadHandler
             return;
         }
 
-        $norm = \function_exists('wp_normalize_path') ? \wp_normalize_path($attachedFilePath) : $attachedFilePath;
         $baseNorm = \function_exists('wp_normalize_path') ? \wp_normalize_path($basedir) : $basedir;
-        $normCmp = $norm;
         $baseCmp = $baseNorm;
         if (\DIRECTORY_SEPARATOR === '\\') {
-            $normCmp = \strtolower($normCmp);
             $baseCmp = \strtolower($baseCmp);
         }
-        if ($baseCmp !== '' && \strpos($normCmp, $baseCmp) !== 0) {
-            $this->writeUploadLog('upload_cleanup: skip (not under uploads)', ['attachment_id' => $attachmentId, 'attached_file' => $norm, 'uploads_basedir' => $baseNorm]);
+
+        $isUnderUploads = function (string $path) use ($baseCmp): bool {
+            if ($path === '' || $baseCmp === '') {
+                return false;
+            }
+            $p = \function_exists('wp_normalize_path') ? \wp_normalize_path($path) : $path;
+            if (\DIRECTORY_SEPARATOR === '\\') {
+                $p = \strtolower($p);
+            }
+            return \strpos($p, $baseCmp) === 0;
+        };
+
+        if (!$isUnderUploads($attachedFilePath)) {
+            $this->writeUploadLog('upload_cleanup: skip (not under uploads)', ['attachment_id' => $attachmentId, 'attached_file' => $attachedFilePath, 'uploads_basedir' => $basedir]);
             return;
         }
 
         $filesToDelete = [];
         if (\is_file($attachedFilePath)) {
             $filesToDelete[] = $attachedFilePath;
+        }
+        if (\function_exists('wp_get_original_image_path')) {
+            $original = (string) \wp_get_original_image_path($attachmentId);
+            if ($original !== '' && $isUnderUploads($original) && \is_file($original)) {
+                $filesToDelete[] = $original;
+            }
+        } elseif (isset($metadata['original_image']) && \is_string($metadata['original_image']) && $metadata['original_image'] !== '') {
+            $dir = \dirname($attachedFilePath);
+            $original = $dir . DIRECTORY_SEPARATOR . (string) $metadata['original_image'];
+            if ($isUnderUploads($original) && \is_file($original)) {
+                $filesToDelete[] = $original;
+            }
         }
 
         // Delete intermediate sizes if present.
@@ -363,7 +384,7 @@ final class UploadHandler
 
         $filesToDelete = \array_values(\array_unique($filesToDelete));
         if (empty($filesToDelete)) {
-            $this->writeUploadLog('upload_cleanup: skip (no local files found)', ['attachment_id' => $attachmentId, 'attached_file' => $norm]);
+            $this->writeUploadLog('upload_cleanup: skip (no local files found)', ['attachment_id' => $attachmentId, 'attached_file' => $attachedFilePath]);
             return;
         }
 
