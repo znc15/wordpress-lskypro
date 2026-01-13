@@ -222,7 +222,7 @@ final class Admin
                             <form action='options.php' method='post' class="needs-validation" novalidate>
                                 <?php
                                 \settings_fields('lsky_pro_options');
-                                \do_settings_sections('lsky-pro-settings');
+                                $this->render_settings_sections_as_blocks('lsky-pro-settings');
                                 \submit_button('保存设置', 'primary', 'submit', true, ['class' => 'btn btn-primary btn-lg mt-3']);
                                 ?>
                             </form>
@@ -232,6 +232,41 @@ final class Admin
             </div>
         </div>
         <?php
+    }
+
+    private function render_settings_sections_as_blocks(string $page): void
+    {
+        global $wp_settings_sections;
+
+        if (!isset($wp_settings_sections[$page]) || !\is_array($wp_settings_sections[$page])) {
+            return;
+        }
+
+        foreach ((array) $wp_settings_sections[$page] as $section) {
+            if (!\is_array($section)) {
+                continue;
+            }
+            $id = isset($section['id']) ? (string) $section['id'] : '';
+            $title = isset($section['title']) ? (string) $section['title'] : '';
+            if ($id === '') {
+                continue;
+            }
+
+            echo '<div class="lsky-settings-block">';
+            echo '<div class="lsky-settings-block-header">' . \esc_html($title !== '' ? $title : $id) . '</div>';
+            echo '<div class="lsky-settings-block-body">';
+
+            if (isset($section['callback']) && \is_callable($section['callback'])) {
+                \call_user_func($section['callback'], $section);
+            }
+
+            echo '<table class="form-table" role="presentation">';
+            \do_settings_fields($page, $id);
+            echo '</table>';
+
+            echo '</div>';
+            echo '</div>';
+        }
     }
 
     private function render_settings_messages(): void

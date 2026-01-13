@@ -8,6 +8,7 @@ use LskyPro\Module\Admin;
 use LskyPro\Module\Ajax;
 use LskyPro\Module\Media;
 use LskyPro\Module\Settings;
+use LskyPro\Module\UserPolicy;
 use LskyPro\Support\Options;
 
 final class Plugin
@@ -25,6 +26,7 @@ final class Plugin
         (new Admin())->register();
         (new Media())->register();
         (new Ajax())->register();
+        (new UserPolicy())->register();
 
         // Core handlers
         new UploadHandler();

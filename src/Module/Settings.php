@@ -58,6 +58,42 @@ final class Settings
         $albumId = isset($input['album_id']) ? \absint($input['album_id']) : 0;
         $clean['album_id'] = (string) $albumId;
 
+        $defaultStorageAdmin = isset($input['default_storage_id_admin']) ? \absint($input['default_storage_id_admin']) : 0;
+        $defaultStorageUser = isset($input['default_storage_id_user']) ? \absint($input['default_storage_id_user']) : 0;
+        $clean['default_storage_id_admin'] = (string) $defaultStorageAdmin;
+        $clean['default_storage_id_user'] = (string) $defaultStorageUser;
+
+        $defaultAlbumAdmin = isset($input['default_album_id_admin']) ? \absint($input['default_album_id_admin']) : 0;
+        $defaultAlbumUser = isset($input['default_album_id_user']) ? \absint($input['default_album_id_user']) : 0;
+        $clean['default_album_id_admin'] = (string) $defaultAlbumAdmin;
+        $clean['default_album_id_user'] = (string) $defaultAlbumUser;
+
+        $roles = \function_exists('wp_roles') ? \wp_roles() : null;
+        $roleNames = ($roles && isset($roles->role_names) && \is_array($roles->role_names)) ? $roles->role_names : [];
+        $validRoleKeys = \array_keys($roleNames);
+
+        $sanitizeRoleGroup = static function ($raw) use ($validRoleKeys): array {
+            if (\is_string($raw)) {
+                $raw = \array_filter(\array_map('trim', \explode("\n", \str_replace(["\r\n", "\r"], "\n", $raw))));
+            }
+            if (!\is_array($raw)) {
+                return [];
+            }
+            $keys = [];
+            foreach ($raw as $r) {
+                $k = \sanitize_key((string) $r);
+                if ($k !== '' && (empty($validRoleKeys) || \in_array($k, $validRoleKeys, true))) {
+                    $keys[] = $k;
+                }
+            }
+            return \array_values(\array_unique($keys));
+        };
+
+        $clean['admin_role_group'] = $sanitizeRoleGroup($input['admin_role_group'] ?? []);
+        $clean['user_role_group'] = $sanitizeRoleGroup($input['user_role_group'] ?? []);
+
+        $clean['delete_remote_images_on_post_delete'] = (!empty($input['delete_remote_images_on_post_delete']) && (string) $input['delete_remote_images_on_post_delete'] === '1') ? 1 : 0;
+
         $clean['process_remote_images'] = (!empty($input['process_remote_images']) && (string) $input['process_remote_images'] === '1') ? 1 : 0;
 
         $clean['exclude_site_icon'] = (!empty($input['exclude_site_icon']) && (string) $input['exclude_site_icon'] === '1') ? 1 : 0;
@@ -189,7 +225,14 @@ final class Settings
             ['id' => 'lsky_pro_token', 'title' => 'Token', 'callback' => [$this, 'token_render']],
             ['id' => 'storage_id', 'title' => '存储ID', 'callback' => [$this, 'storage_id_callback']],
             ['id' => 'album_id', 'title' => '相册', 'callback' => [$this, 'album_id_callback']],
+            ['id' => 'default_storage_id_admin', 'title' => '管理员默认存储策略', 'callback' => [$this, 'default_storage_admin_callback']],
+            ['id' => 'default_storage_id_user', 'title' => '普通用户默认存储策略', 'callback' => [$this, 'default_storage_user_callback']],
+            ['id' => 'default_album_id_admin', 'title' => '管理员默认相册', 'callback' => [$this, 'default_album_admin_callback']],
+            ['id' => 'default_album_id_user', 'title' => '普通用户默认相册', 'callback' => [$this, 'default_album_user_callback']],
+            ['id' => 'admin_role_group', 'title' => '管理员用户组（WP 角色）', 'callback' => [$this, 'admin_role_group_callback']],
+            ['id' => 'user_role_group', 'title' => '普通用户组（WP 角色）', 'callback' => [$this, 'user_role_group_callback']],
             ['id' => 'process_remote_images', 'title' => '远程图片处理', 'callback' => [$this, 'process_remote_images_callback']],
+            ['id' => 'delete_remote_images_on_post_delete', 'title' => '删除文章时删除图床图片', 'callback' => [$this, 'delete_remote_images_on_post_delete_callback']],
             ['id' => 'exclude_site_icon', 'title' => '排除站点图标', 'callback' => [$this, 'exclude_site_icon_callback']],
             ['id' => 'exclude_ajax_actions', 'title' => '排除头像上传（AJAX action）', 'callback' => [$this, 'exclude_ajax_actions_callback']],
             ['id' => 'exclude_referer_contains', 'title' => '排除头像上传（Referer 关键字）', 'callback' => [$this, 'exclude_referer_contains_callback']],
@@ -361,6 +404,149 @@ final class Settings
         <?php endif; ?>
         <p class="description">用于上传时可选携带 <code>album_id</code>；未指定则不会携带该字段。</p>
         <?php
+    }
+
+    private function renderStorageSelect(string $name, int $selectedId, string $inheritLabel): void
+    {
+        $uploader = new Uploader();
+        $storages = $uploader->get_strategies();
+
+        if ($storages === false || !\is_array($storages) || empty($storages)) {
+            echo '<input class="lsky-input-small" type="number" name="lsky_pro_options[' . \esc_attr($name) . ']" value="' . \esc_attr((string) $selectedId) . '" min="0">';
+            echo '<p class="description">0=继承全局；>0=指定 Storage ID。' . ($storages === false ? ('（获取列表失败：' . \esc_html($uploader->getError()) . '）') : '') . '</p>';
+            return;
+        }
+
+        echo '<select class="lsky-select" name="lsky_pro_options[' . \esc_attr($name) . ']">';
+        echo '<option value="0" ' . \selected($selectedId, 0, false) . '>' . \esc_html($inheritLabel) . '</option>';
+        foreach ($storages as $storage) {
+            if (!\is_array($storage)) {
+                continue;
+            }
+            $id = isset($storage['id']) ? (int) $storage['id'] : 0;
+            if ($id <= 0) {
+                continue;
+            }
+            $label = isset($storage['name']) ? (string) $storage['name'] : '';
+            $label = $label !== '' ? $label : ('ID: ' . (string) $id);
+            echo '<option value="' . \esc_attr((string) $id) . '" ' . \selected($selectedId, $id, false) . '>' . \esc_html($label) . ' (ID: ' . \esc_html((string) $id) . ')</option>';
+        }
+        echo '</select>';
+    }
+
+    private function renderAlbumSelect(string $name, int $selectedId, string $inheritLabel): void
+    {
+        $uploader = new Uploader();
+        $albums = $uploader->get_all_albums('', 100);
+
+        if ($albums === false || !\is_array($albums)) {
+            echo '<input class="lsky-input-small" type="number" name="lsky_pro_options[' . \esc_attr($name) . ']" value="' . \esc_attr((string) $selectedId) . '" min="0">';
+            echo '<p class="description">0=继承全局；>0=指定 album_id。' . ($albums === false ? ('（获取列表失败：' . \esc_html($uploader->getError()) . '）') : '') . '</p>';
+            return;
+        }
+
+        echo '<select class="lsky-select" name="lsky_pro_options[' . \esc_attr($name) . ']">';
+        echo '<option value="0" ' . \selected($selectedId, 0, false) . '>' . \esc_html($inheritLabel) . '</option>';
+        foreach ($albums as $album) {
+            if (!\is_array($album)) {
+                continue;
+            }
+            $id = isset($album['id']) ? (int) $album['id'] : 0;
+            if ($id <= 0) {
+                continue;
+            }
+            $label = isset($album['name']) ? (string) $album['name'] : '';
+            $label = $label !== '' ? $label : ('ID: ' . (string) $id);
+            echo '<option value="' . \esc_attr((string) $id) . '" ' . \selected($selectedId, $id, false) . '>' . \esc_html($label) . ' (ID: ' . \esc_html((string) $id) . ')</option>';
+        }
+        echo '</select>';
+    }
+
+    public function default_storage_admin_callback(): void
+    {
+        $options = Options::normalized();
+        $selected = (int) \absint((string) ($options['default_storage_id_admin'] ?? '0'));
+        $this->renderStorageSelect('default_storage_id_admin', $selected, '继承全局存储策略');
+        echo '<p class="description">用于实现“管理员发文走带水印策略”。</p>';
+    }
+
+    public function default_storage_user_callback(): void
+    {
+        $options = Options::normalized();
+        $selected = (int) \absint((string) ($options['default_storage_id_user'] ?? '0'));
+        $this->renderStorageSelect('default_storage_id_user', $selected, '继承全局存储策略');
+        echo '<p class="description">用于实现“普通用户发文走无水印策略”。</p>';
+    }
+
+    public function default_album_admin_callback(): void
+    {
+        $options = Options::normalized();
+        $selected = (int) \absint((string) ($options['default_album_id_admin'] ?? '0'));
+        $this->renderAlbumSelect('default_album_id_admin', $selected, '继承全局相册');
+    }
+
+    public function default_album_user_callback(): void
+    {
+        $options = Options::normalized();
+        $selected = (int) \absint((string) ($options['default_album_id_user'] ?? '0'));
+        $this->renderAlbumSelect('default_album_id_user', $selected, '继承全局相册');
+    }
+
+    public function delete_remote_images_on_post_delete_callback(): void
+    {
+        $options = Options::normalized();
+        $checked = isset($options['delete_remote_images_on_post_delete']) && (int) $options['delete_remote_images_on_post_delete'] === 1;
+        ?>
+        <label>
+            <input type="checkbox" name="lsky_pro_options[delete_remote_images_on_post_delete]" value="1" <?php \checked($checked); ?>>
+            文章被永久删除时，同时删除该文章关联的图床图片
+        </label>
+        <p class="description">包含：插件处理外链/本站媒体图片时上传到图床并记录的 photo_id；文章内容里引用到的媒体库附件（若附件已写入 <code>_lsky_pro_photo_id</code>）。注意：若同一附件/图床图在多个文章复用，开启后会一起删。</p>
+        <?php
+    }
+
+    private function renderRoleGroupCheckboxes(string $name, array $selected): void
+    {
+        $roles = \function_exists('wp_roles') ? \wp_roles() : null;
+        $roleNames = ($roles && isset($roles->role_names) && \is_array($roles->role_names)) ? $roles->role_names : [];
+        if (empty($roleNames)) {
+            echo '<p class="description">无法获取站点角色列表。</p>';
+            return;
+        }
+
+        foreach ($roleNames as $key => $label) {
+            $key = \sanitize_key((string) $key);
+            if ($key === '') {
+                continue;
+            }
+            $isChecked = \in_array($key, $selected, true);
+            echo '<label style="display:inline-block;margin-right:16px;">';
+            echo '<input type="checkbox" name="lsky_pro_options[' . \esc_attr($name) . '][]" value="' . \esc_attr($key) . '" ' . \checked($isChecked, true, false) . '>';
+            echo ' ' . \esc_html((string) $label) . ' <code>(' . \esc_html($key) . ')</code>';
+            echo '</label>';
+        }
+    }
+
+    public function admin_role_group_callback(): void
+    {
+        $options = Options::normalized();
+        $selected = $options['admin_role_group'] ?? [];
+        if (!\is_array($selected)) {
+            $selected = [];
+        }
+        $this->renderRoleGroupCheckboxes('admin_role_group', $selected);
+        echo '<p class="description">勾选哪些 WordPress 角色属于“管理员组”。命中该组的用户会走“管理员默认存储策略/相册”。</p>';
+    }
+
+    public function user_role_group_callback(): void
+    {
+        $options = Options::normalized();
+        $selected = $options['user_role_group'] ?? [];
+        if (!\is_array($selected)) {
+            $selected = [];
+        }
+        $this->renderRoleGroupCheckboxes('user_role_group', $selected);
+        echo '<p class="description">勾选哪些 WordPress 角色属于“普通用户组”。若用户同时命中两组，以“管理员组”为准。</p>';
     }
 
     public function settings_section_callback(): void

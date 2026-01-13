@@ -85,8 +85,17 @@ final class Remote
                 $processedUrls = [];
             }
 
+            $processedPhotoIds = \get_post_meta($postId, '_lsky_pro_processed_photo_ids', true);
+            if (!\is_array($processedPhotoIds)) {
+                $processedPhotoIds = [];
+            }
+
             $persistProcessedUrls = static function () use ($postId, &$processedUrls): void {
                 \update_post_meta($postId, '_lsky_pro_processed_urls', $processedUrls);
+            };
+
+            $persistProcessedPhotoIds = static function () use ($postId, &$processedPhotoIds): void {
+                \update_post_meta($postId, '_lsky_pro_processed_photo_ids', $processedPhotoIds);
             };
 
             if (\preg_match_all($pattern, $content, $matches)) {
@@ -108,11 +117,18 @@ final class Remote
                             $updated = true;
                             \error_log('LskyPro: 替换为图床地址');
                         }
+
+                        // If we previously recorded photo_id for this URL, keep it.
+                        if (isset($processedPhotoIds[$urlClean]) && \is_numeric($processedPhotoIds[$urlClean])) {
+                            $persistProcessedPhotoIds();
+                        }
                         continue;
                     }
 
                     if (\strpos($urlClean, $siteUrl) !== false && !$this->isLskyUrl($urlClean) && $baseurl !== '' && \strpos($urlClean, $baseurl) === 0) {
                         \error_log('LskyPro: 检测到本站媒体图片，准备上传: ' . $urlClean);
+
+                        $attachmentId = \attachment_url_to_postid($urlClean);
 
                         $newUrl = $this->processLocalMediaImage($urlClean);
                         if ($newUrl) {
@@ -120,6 +136,26 @@ final class Remote
                             $content = \str_replace($url, $newUrl, $content);
                             $processedUrls[$urlClean] = $newUrl;
                             $persistProcessedUrls();
+
+                            $photoId = 0;
+                            if (\is_numeric($attachmentId) && (int) $attachmentId > 0) {
+                                $photoId = (int) \absint((string) \get_post_meta((int) $attachmentId, '_lsky_pro_photo_id', true));
+                            }
+                            if ($photoId <= 0) {
+                                $last = $this->uploader->getLastUploadedPhotoId();
+                                if (\is_numeric($last)) {
+                                    $last = (int) $last;
+                                    if ($last > 0) {
+                                        $photoId = $last;
+                                    }
+                                }
+                            }
+
+                            if ($photoId > 0) {
+                                $processedPhotoIds[$urlClean] = $photoId;
+                                $persistProcessedPhotoIds();
+                            }
+
                             $this->processed++;
                             $updated = true;
                         } else {
@@ -139,6 +175,16 @@ final class Remote
                             $content = \str_replace($url, $newUrl, $content);
                             $processedUrls[$urlClean] = $newUrl;
                             $persistProcessedUrls();
+
+                            $photoId = $this->uploader->getLastUploadedPhotoId();
+                            if (\is_numeric($photoId)) {
+                                $photoId = (int) $photoId;
+                                if ($photoId > 0) {
+                                    $processedPhotoIds[$urlClean] = $photoId;
+                                    $persistProcessedPhotoIds();
+                                }
+                            }
+
                             $this->processed++;
                             $updated = true;
                         } else {
@@ -156,6 +202,7 @@ final class Remote
             }
 
             $persistProcessedUrls();
+            $persistProcessedPhotoIds();
 
             if ($updated) {
                 \error_log('LskyPro: 更新文章 ' . $postId . ' 内容');

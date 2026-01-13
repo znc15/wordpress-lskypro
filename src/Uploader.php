@@ -228,8 +228,9 @@ class Uploader
 		$this->last_uploaded_photo_id = null;
 
 		$options = Options::normalized();
-		$storage_id = isset($options['storage_id']) ? (int) $options['storage_id'] : 0;
-		$album_id = isset($options['album_id']) ? (int) \absint($options['album_id']) : 0;
+		$currentUserId = \function_exists('get_current_user_id') ? (int) \get_current_user_id() : 0;
+		$storage_id = Options::resolveStorageIdForUser($currentUserId, $options);
+		$album_id = Options::resolveAlbumIdForUser($currentUserId, $options);
 
 		$storages = $this->get_strategies();
 		if (\is_array($storages) && !empty($storages)) {

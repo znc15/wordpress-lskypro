@@ -18,6 +18,81 @@ final class PostHandler
 		$this->remote = new Remote();
 
 		\add_action('save_post', [$this, 'handle_post_save'], 99999, 3);
+		\add_action('before_delete_post', [$this, 'handle_post_delete'], 10, 1);
+	}
+
+	public function handle_post_delete(int $postId): void
+	{
+		if ($postId <= 0) {
+			return;
+		}
+
+		if (\wp_is_post_revision($postId)) {
+			return;
+		}
+
+		$post = \get_post($postId);
+		if (!($post instanceof \WP_Post) || $post->post_type !== 'post') {
+			return;
+		}
+
+		$options = \get_option('lsky_pro_options');
+		$enabled = \is_array($options) && !empty($options['delete_remote_images_on_post_delete']);
+		if (!$enabled) {
+			return;
+		}
+
+		$map = \get_post_meta($postId, '_lsky_pro_processed_photo_ids', true);
+		if (!\is_array($map)) {
+			$map = [];
+		}
+
+		$ids = [];
+		foreach ($map as $v) {
+			if (\is_numeric($v)) {
+				$id = (int) $v;
+				if ($id > 0) {
+					$ids[] = $id;
+				}
+			}
+		}
+
+		// Also delete photos for media attachments embedded in this post.
+		$content = (string) \get_post_field('post_content', $postId);
+		if ($content !== '') {
+			$attachmentIds = [];
+			if (\preg_match_all('~wp-image-(\d+)~', $content, $m1)) {
+				foreach ($m1[1] as $raw) {
+					$attachmentIds[] = (int) $raw;
+				}
+			}
+			if (\preg_match_all('~data-id=["\'](\d+)["\']~', $content, $m2)) {
+				foreach ($m2[1] as $raw) {
+					$attachmentIds[] = (int) $raw;
+				}
+			}
+			$attachmentIds = \array_values(\array_unique(\array_filter(\array_map('absint', $attachmentIds))));
+			foreach ($attachmentIds as $aid) {
+				$pid = (int) \absint((string) \get_post_meta($aid, '_lsky_pro_photo_id', true));
+				if ($pid > 0) {
+					$ids[] = $pid;
+				}
+			}
+		}
+
+		$ids = \array_values(\array_unique($ids));
+		if (empty($ids)) {
+			return;
+		}
+
+		try {
+			$uploader = new Uploader();
+			$uploader->delete_photos($ids);
+			// Clean up mapping to avoid orphan meta in edge cases.
+			\delete_post_meta($postId, '_lsky_pro_processed_photo_ids');
+		} catch (\Exception $e) {
+			\error_log('LskyPro: 删除文章联动删除图床图片异常 - ' . $e->getMessage());
+		}
 	}
 
 	public function handle_post_save(int $postId, \WP_Post $post, bool $update): void

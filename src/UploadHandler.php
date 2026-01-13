@@ -15,7 +15,6 @@ final class UploadHandler
         \add_filter('wp_get_attachment_url', [$this, 'filter_attachment_url'], 10, 2);
         \add_filter('wp_calculate_image_srcset', '__return_false');
         \add_filter('wp_generate_attachment_metadata', [$this, 'attachment_metadata'], 10, 2);
-        \add_filter('wp_image_editors', [$this, 'disable_image_editors']);
         \add_action('delete_attachment', [$this, 'handle_delete_attachment'], 10, 1);
     }
 
@@ -180,6 +179,34 @@ final class UploadHandler
     public function pre_upload(array $file): array
     {
         $this->debugLog('pre_upload', $file);
+
+        $type = isset($file['type']) ? (string) $file['type'] : '';
+        $name = isset($file['name']) ? (string) $file['name'] : '';
+        $tmp = isset($file['tmp_name']) ? (string) $file['tmp_name'] : '';
+
+        $isWebp = (\strtolower($type) === 'image/webp') || (\preg_match('~\.webp$~i', $name) === 1);
+        if (!$isWebp) {
+            return $file;
+        }
+
+        if ($tmp === '' || !\is_file($tmp) || !\is_readable($tmp)) {
+            return $file;
+        }
+
+        $converted = $this->convertWebpToJpegOrPng($tmp, $name);
+        if ($converted === null) {
+            // Keep original; WordPress may still show warning, but we did best effort.
+            return $file;
+        }
+
+        // Point upload to the converted temporary file.
+        $file['tmp_name'] = $converted['tmp_name'];
+        $file['name'] = $converted['name'];
+        $file['type'] = $converted['type'];
+        if (isset($file['size']) && \is_numeric($file['size'])) {
+            $file['size'] = (int) \filesize($converted['tmp_name']);
+        }
+
         return $file;
     }
 
@@ -259,11 +286,98 @@ final class UploadHandler
         }
     }
 
+
     /**
-     * @return array<int, string>
+     * @return array{tmp_name:string,name:string,type:string}|null
      */
-    public function disable_image_editors(): array
+    private function convertWebpToJpegOrPng(string $tmpFile, string $originalName): ?array
     {
-        return [];
+        $targetBase = $originalName !== '' ? (string) \pathinfo($originalName, PATHINFO_FILENAME) : 'image';
+        $targetBase = $targetBase !== '' ? $targetBase : 'image';
+
+        $prefer = (string) \apply_filters('lsky_pro_webp_convert_format', 'jpg');
+        $prefer = \strtolower(\trim($prefer));
+        if (!\in_array($prefer, ['jpg', 'jpeg', 'png'], true)) {
+            $prefer = 'jpg';
+        }
+
+        $createTmp = static function (string $suffix): string {
+            $t = \function_exists('wp_tempnam') ? (string) \wp_tempnam('lskypro_' . $suffix . '_') : '';
+            if ($t === '' || !\is_string($t)) {
+                $t = \sys_get_temp_dir() . DIRECTORY_SEPARATOR . \uniqid('lskypro_' . $suffix . '_', true);
+            }
+            return $t;
+        };
+
+        // Try GD first.
+        if (\function_exists('imagecreatefromwebp')) {
+            $img = @\imagecreatefromwebp($tmpFile);
+            if ($img !== false) {
+                $writeJpeg = static function ($imgRes, string $dest): bool {
+                    if (!\function_exists('imagejpeg')) {
+                        return false;
+                    }
+                    if (\function_exists('imageinterlace')) {
+                        @\imageinterlace($imgRes, true);
+                    }
+                    return @\imagejpeg($imgRes, $dest, 90);
+                };
+
+                $writePng = static function ($imgRes, string $dest): bool {
+                    if (!\function_exists('imagepng')) {
+                        return false;
+                    }
+                    if (\function_exists('imagesavealpha')) {
+                        @\imagesavealpha($imgRes, true);
+                    }
+                    return @\imagepng($imgRes, $dest);
+                };
+
+                $order = $prefer === 'png' ? ['png', 'jpg'] : ['jpg', 'png'];
+                foreach ($order as $fmt) {
+                    $dest = $createTmp($fmt);
+                    $ok = $fmt === 'png' ? $writePng($img, $dest) : $writeJpeg($img, $dest);
+                    if ($ok && \is_file($dest) && \filesize($dest) > 0) {
+                        @\imagedestroy($img);
+                        $ext = $fmt === 'png' ? 'png' : 'jpg';
+                        return [
+                            'tmp_name' => $dest,
+                            'name' => $targetBase . '.' . $ext,
+                            'type' => $fmt === 'png' ? 'image/png' : 'image/jpeg',
+                        ];
+                    }
+                    if (\is_file($dest)) {
+                        @\unlink($dest);
+                    }
+                }
+
+                @\imagedestroy($img);
+            }
+        }
+
+        // Fallback to WordPress image editor if available.
+        if (\function_exists('wp_get_image_editor')) {
+            $editor = \wp_get_image_editor($tmpFile);
+            if (!\is_wp_error($editor)) {
+                $fmt = $prefer === 'png' ? 'png' : 'jpeg';
+                $dest = $createTmp($fmt);
+                $saved = $editor->save($dest, $fmt);
+                if (\is_array($saved) && isset($saved['path']) && \is_file((string) $saved['path'])) {
+                    $path = (string) $saved['path'];
+                    $mime = isset($saved['mime-type']) ? (string) $saved['mime-type'] : ($fmt === 'png' ? 'image/png' : 'image/jpeg');
+                    $ext = $fmt === 'png' ? 'png' : 'jpg';
+                    return [
+                        'tmp_name' => $path,
+                        'name' => $targetBase . '.' . $ext,
+                        'type' => $mime,
+                    ];
+                }
+                if (\is_file($dest)) {
+                    @\unlink($dest);
+                }
+            }
+        }
+
+        return null;
     }
 }
