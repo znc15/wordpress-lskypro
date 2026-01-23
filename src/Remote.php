@@ -244,6 +244,120 @@ final class Remote
         }
     }
 
+    public function process_zib_other_data(int $postId): bool
+    {
+        $postId = (int) $postId;
+        if ($postId <= 0) {
+            return false;
+        }
+
+        $raw = \get_post_meta($postId, 'zib_other_data', true);
+        if ($raw === '' || $raw === null) {
+            return false;
+        }
+
+        $data = \maybe_unserialize($raw);
+        if (!\is_array($data)) {
+            return false;
+        }
+
+        $processedUrls = \get_post_meta($postId, '_lsky_pro_processed_urls', true);
+        if (!\is_array($processedUrls)) {
+            $processedUrls = [];
+        }
+
+        $processedPhotoIds = \get_post_meta($postId, '_lsky_pro_processed_photo_ids', true);
+        if (!\is_array($processedPhotoIds)) {
+            $processedPhotoIds = [];
+        }
+
+        $siteUrl = \function_exists('get_site_url') ? (string) \get_site_url() : '';
+        $uploads = \function_exists('wp_upload_dir') ? \wp_upload_dir() : [];
+        $baseurl = \is_array($uploads) && isset($uploads['baseurl']) ? (string) $uploads['baseurl'] : '';
+
+        $normalize = static function (string $url): string {
+            $url = \html_entity_decode($url);
+            $url = \trim($url);
+            if ($url === '') {
+                return '';
+            }
+            $parts = \function_exists('wp_parse_url') ? \wp_parse_url($url) : \parse_url($url);
+            if (!\is_array($parts) || empty($parts['scheme']) || empty($parts['host']) || empty($parts['path'])) {
+                return $url;
+            }
+            $norm = $parts['scheme'] . '://' . $parts['host'] . $parts['path'];
+            if (!empty($parts['port'])) {
+                $norm = $parts['scheme'] . '://' . $parts['host'] . ':' . $parts['port'] . $parts['path'];
+            }
+            return $norm;
+        };
+
+        $changed = false;
+        foreach (['cover_image', 'thumbnail_url'] as $key) {
+            if (!isset($data[$key]) || !\is_string($data[$key])) {
+                continue;
+            }
+
+            $original = $data[$key];
+            $urlClean = $normalize($original);
+            if ($urlClean === '') {
+                continue;
+            }
+
+            if (isset($processedUrls[$urlClean])) {
+                $data[$key] = $processedUrls[$urlClean];
+                if ($data[$key] !== $original) {
+                    $changed = true;
+                }
+                continue;
+            }
+
+            if ($this->isLskyUrl($urlClean)) {
+                $processedUrls[$urlClean] = $original;
+                continue;
+            }
+
+            $isLocal = $siteUrl !== '' && $baseurl !== '' && \strpos($urlClean, $siteUrl) !== false && \strpos($urlClean, $baseurl) === 0;
+            $newUrl = $isLocal ? $this->processLocalMediaImage($urlClean) : $this->processRemoteImage($original);
+
+            if ($newUrl) {
+                $data[$key] = $newUrl;
+                $processedUrls[$urlClean] = $newUrl;
+                if ($newUrl !== $original) {
+                    $changed = true;
+                }
+
+                $photoId = 0;
+                if ($isLocal && \function_exists('attachment_url_to_postid')) {
+                    $aid = (int) \attachment_url_to_postid($urlClean);
+                    if ($aid > 0) {
+                        $photoId = (int) \absint((string) \get_post_meta($aid, '_lsky_pro_photo_id', true));
+                    }
+                }
+                if ($photoId <= 0 && $this->uploader && \method_exists($this->uploader, 'getLastUploadedPhotoId')) {
+                    $last = $this->uploader->getLastUploadedPhotoId();
+                    if (\is_numeric($last) && (int) $last > 0) {
+                        $photoId = (int) $last;
+                    }
+                }
+                if ($photoId > 0) {
+                    $processedPhotoIds[$urlClean] = $photoId;
+                }
+            } else {
+                \error_log('LskyPro: zib_other_data 图片处理失败: ' . (string) $this->error);
+            }
+        }
+
+        if ($changed) {
+            \update_post_meta($postId, 'zib_other_data', $data);
+        }
+
+        \update_post_meta($postId, '_lsky_pro_processed_urls', $processedUrls);
+        \update_post_meta($postId, '_lsky_pro_processed_photo_ids', $processedPhotoIds);
+
+        return $changed;
+    }
+
     private function processLocalMediaImage(string $url)
     {
         $attachmentId = \attachment_url_to_postid($url);
