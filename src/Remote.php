@@ -358,7 +358,7 @@ final class Remote
         return $changed;
     }
 
-    private function processLocalMediaImage(string $url)
+    protected function processLocalMediaImage(string $url)
     {
         $attachmentId = \attachment_url_to_postid($url);
         $filePath = '';
@@ -430,7 +430,7 @@ final class Remote
         return $newUrl;
     }
 
-    private function isLskyUrl(string $url): bool
+    protected function isLskyUrl(string $url): bool
     {
         $options = \get_option('lsky_pro_options');
         $apiUrl = \is_array($options) && isset($options['lsky_pro_api_url']) ? (string) $options['lsky_pro_api_url'] : '';
@@ -449,7 +449,7 @@ final class Remote
         return $isLsky;
     }
 
-    private function processRemoteImage(string $url)
+    protected function processRemoteImage(string $url)
     {
         \error_log('LskyPro: 开始处理远程图片: ' . $url);
 
