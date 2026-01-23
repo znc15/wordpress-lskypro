@@ -115,6 +115,53 @@ final class Settings
         });
         $clean['exclude_referer_contains'] = $lines ? \implode("\n", $lines) . "\n" : '';
 
+        $rawRules = $input['keyword_routing_rules'] ?? [];
+        $keywordRules = [];
+        if (\is_array($rawRules)) {
+            foreach ($rawRules as $rule) {
+                if (!\is_array($rule)) {
+                    continue;
+                }
+
+                $keywordsRaw = $rule['keywords'] ?? '';
+                $keywordsText = \is_array($keywordsRaw) ? \implode("\n", $keywordsRaw) : (string) $keywordsRaw;
+                $keywordsText = \str_replace(["\r\n", "\r"], "\n", $keywordsText);
+                $parts = \preg_split('/[,\n]+/', $keywordsText);
+                if (!\is_array($parts)) {
+                    $parts = [];
+                }
+
+                $keywords = [];
+                foreach ($parts as $part) {
+                    $part = \sanitize_text_field((string) $part);
+                    $part = \strtolower(\trim($part));
+                    if ($part !== '') {
+                        $keywords[] = $part;
+                    }
+                }
+                $keywords = \array_values(\array_unique($keywords));
+
+                if (empty($keywords)) {
+                    continue;
+                }
+
+                $storageId = \absint($rule['storage_id'] ?? 0);
+                if ($storageId <= 0) {
+                    continue;
+                }
+
+                $albumIdRaw = $rule['album_id'] ?? '';
+                $albumId = $albumIdRaw === '' ? 0 : \absint($albumIdRaw);
+
+                $keywordRules[] = [
+                    'keywords' => $keywords,
+                    'storage_id' => (string) $storageId,
+                    'album_id' => (string) $albumId,
+                ];
+            }
+        }
+        $clean['keyword_routing_rules'] = $keywordRules;
+
         if ($apiUrl === '' || $token === '') {
             return \array_merge($previous, $clean);
         }

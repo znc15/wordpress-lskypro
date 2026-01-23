@@ -47,6 +47,7 @@ final class Options
             'exclude_site_icon' => 1,
             'exclude_ajax_actions' => "avatar\n",
             'exclude_referer_contains' => '',
+            'keyword_routing_rules' => [],
         ];
     }
 
