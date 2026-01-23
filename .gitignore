@@ -1,6 +1,7 @@
 # --- Repo meta / non-plugin artifacts ---
 .github/
 docs/
+.worktrees/
 
 # --- Runtime logs / generated files ---
 logs/
