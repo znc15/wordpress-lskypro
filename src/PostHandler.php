@@ -452,6 +452,12 @@ final class PostHandler
 			\error_log('LskyPro: 文章处理异常 - ' . $e->getMessage());
 		}
 
+		try {
+			$this->remote->process_zib_other_data($postId);
+		} catch (\Exception $e) {
+			\error_log('LskyPro: zib_other_data 处理异常 - ' . $e->getMessage());
+		}
+
 		if ($hadZibOtherDataBefore) {
 			$zibOtherDataAfter = \get_post_meta($postId, 'zib_other_data', true);
 			if (empty($zibOtherDataAfter)) {

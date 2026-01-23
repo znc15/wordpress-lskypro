@@ -97,6 +97,64 @@ namespace {
         return isset($response['body']) ? (string) $response['body'] : '';
     }
 
+    function add_action($tag, $callback, $priority = 10, $args = 1)
+    {
+        return true;
+    }
+
+    function wp_is_post_revision($postId)
+    {
+        return false;
+    }
+
+    function add_post_meta($postId, $key, $value, $unique = false)
+    {
+        $postId = (int) $postId;
+        if (!isset($GLOBALS['__meta'][$postId])) {
+            $GLOBALS['__meta'][$postId] = [];
+        }
+        if ($unique && array_key_exists($key, $GLOBALS['__meta'][$postId])) {
+            return false;
+        }
+        $GLOBALS['__meta'][$postId][$key] = $value;
+        return true;
+    }
+
+    function delete_post_meta($postId, $key, $value = '')
+    {
+        $postId = (int) $postId;
+        if (isset($GLOBALS['__meta'][$postId][$key])) {
+            unset($GLOBALS['__meta'][$postId][$key]);
+            return true;
+        }
+        return false;
+    }
+
+    function get_post_field($field, $postId)
+    {
+        return '';
+    }
+
+    function clean_post_cache($postId)
+    {
+        return true;
+    }
+
+    function wp_doing_ajax()
+    {
+        return false;
+    }
+
+    function wp_get_referer()
+    {
+        return '';
+    }
+
+    function current_time($type, $gmt = false)
+    {
+        return $gmt ? gmdate('Y-m-d H:i:s') : date('Y-m-d H:i:s');
+    }
+
     function attachment_url_to_postid($url)
     {
         return $url === 'https://example.com/wp-content/uploads/cover.jpg' ? 10 : 0;
@@ -117,6 +175,19 @@ namespace {
         {
             return true;
         }
+    }
+
+    if (!class_exists('WP_Post')) {
+        class WP_Post
+        {
+            public $post_type;
+            public $post_title;
+            public $post_status;
+        }
+    }
+
+    if (!defined('LSKY_PRO_PLUGIN_DIR')) {
+        define('LSKY_PRO_PLUGIN_DIR', __DIR__ . '/..');
     }
 }
 
@@ -167,6 +238,7 @@ namespace LskyPro\Support {
 
 namespace {
     require_once __DIR__ . '/../src/Remote.php';
+    require_once __DIR__ . '/../src/PostHandler.php';
 
     function assertSame($expected, $actual, string $label): void
     {
@@ -206,7 +278,61 @@ namespace {
         assertSame('https://lsky.test/local.jpg', $cache['https://example.com/wp-content/uploads/cover.jpg'], 'cache local');
     }
 
+    function test_post_handler_calls_meta_processing(): void
+    {
+        $GLOBALS['__options']['lsky_pro_options']['process_remote_images'] = 1;
+
+        $postId = 201;
+        $GLOBALS['__meta'][$postId] = [
+            'zib_other_data' => [
+                'thumbnail_url' => 'https://remote.test/remote.jpg?x=1',
+                'cover_image' => 'https://example.com/wp-content/uploads/cover.jpg',
+            ],
+            '_lsky_pro_processed_urls' => [],
+            '_lsky_pro_processed_photo_ids' => [],
+        ];
+
+        $post = new WP_Post();
+        $post->post_type = 'post';
+        $post->post_title = 'Test';
+        $post->post_status = 'publish';
+
+        $handler = new \LskyPro\PostHandler();
+        $handler->handle_post_save($postId, $post, true);
+
+        $updated = $GLOBALS['__meta'][$postId]['zib_other_data'];
+        assertSame('https://lsky.test/remote.jpg', $updated['thumbnail_url'], 'post handler replaced thumbnail_url');
+        assertSame('https://lsky.test/local.jpg', $updated['cover_image'], 'post handler replaced cover_image');
+    }
+
+    function test_post_handler_skips_when_disabled(): void
+    {
+        $GLOBALS['__options']['lsky_pro_options']['process_remote_images'] = 0;
+
+        $postId = 202;
+        $GLOBALS['__meta'][$postId] = [
+            'zib_other_data' => [
+                'thumbnail_url' => 'https://remote.test/remote.jpg?x=1',
+                'cover_image' => 'https://example.com/wp-content/uploads/cover.jpg',
+            ],
+        ];
+
+        $post = new WP_Post();
+        $post->post_type = 'post';
+        $post->post_title = 'Test';
+        $post->post_status = 'publish';
+
+        $handler = new \LskyPro\PostHandler();
+        $handler->handle_post_save($postId, $post, true);
+
+        $updated = $GLOBALS['__meta'][$postId]['zib_other_data'];
+        assertSame('https://remote.test/remote.jpg?x=1', $updated['thumbnail_url'], 'post handler skip thumbnail_url');
+        assertSame('https://example.com/wp-content/uploads/cover.jpg', $updated['cover_image'], 'post handler skip cover_image');
+    }
+
     test_process_zib_other_data_replaces_urls();
+    test_post_handler_calls_meta_processing();
+    test_post_handler_skips_when_disabled();
 
     fwrite(STDOUT, "OK\n");
 }
