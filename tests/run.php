@@ -33,6 +33,21 @@ namespace {
         return is_string($url) ? $url : '';
     }
 
+    function esc_attr($text)
+    {
+        return is_string($text) ? $text : '';
+    }
+
+    function esc_html($text)
+    {
+        return is_string($text) ? $text : '';
+    }
+
+    function esc_textarea($text)
+    {
+        return is_string($text) ? $text : '';
+    }
+
     function wp_roles()
     {
         return (object) ['role_names' => ['administrator' => 'Administrator']];
@@ -90,6 +105,26 @@ namespace {
         assertSame('0', $rules[0]['album_id'], 'album id kept');
     }
 
+    function test_keyword_rules_render(): void
+    {
+        $GLOBALS['__options']['lsky_pro_options'] = [
+            'keyword_routing_rules' => [
+                [
+                    'keywords' => ['foo', 'bar'],
+                    'storage_id' => '2',
+                    'album_id' => '0',
+                ],
+            ],
+        ];
+
+        $settings = new \LskyPro\Module\Settings();
+        \ob_start();
+        $settings->keyword_routing_rules_callback();
+        $html = (string) \ob_get_clean();
+        assertSame(true, \strpos($html, 'lsky-keyword-rules') !== false, 'renders keyword rules');
+    }
+
     test_keyword_rules_validation();
+    test_keyword_rules_render();
     fwrite(STDOUT, "OK\n");
 }

@@ -131,7 +131,12 @@ final class Admin
                 break;
 
             case 'lsky-pro-settings':
-                \wp_enqueue_script('lsky-pro-admin-base', \plugins_url('assets/js/admin/base.js', LSKY_PRO_PLUGIN_FILE), $baseDeps, '1.0.1', true);
+                $baseJsPath = \trailingslashit(LSKY_PRO_PLUGIN_DIR) . 'assets/js/admin/base.js';
+                $rulesJsPath = \trailingslashit(LSKY_PRO_PLUGIN_DIR) . 'assets/js/admin/keyword-rules.js';
+                $baseJsVer = \file_exists($baseJsPath) ? (string) \filemtime($baseJsPath) : '1.0.1';
+                $rulesJsVer = \file_exists($rulesJsPath) ? (string) \filemtime($rulesJsPath) : '1.0.0';
+
+                \wp_enqueue_script('lsky-pro-admin-base', \plugins_url('assets/js/admin/base.js', LSKY_PRO_PLUGIN_FILE), $baseDeps, $baseJsVer, true);
                 $options = \get_option('lsky_pro_options');
                 $apiUrl = (\is_array($options) && isset($options['lsky_pro_api_url'])) ? (string) $options['lsky_pro_api_url'] : '';
                 \wp_localize_script('lsky-pro-admin-base', 'lskyProData', [
@@ -142,6 +147,7 @@ final class Admin
                 ]);
                 \wp_enqueue_script('lsky-pro-admin-info', \plugins_url('assets/js/admin/info.js', LSKY_PRO_PLUGIN_FILE), ['lsky-pro-admin-base'], '1.0.1', true);
                 \wp_enqueue_script('lsky-pro-admin-update', \plugins_url('assets/js/admin/update.js', LSKY_PRO_PLUGIN_FILE), ['lsky-pro-admin-base'], '1.0.1', true);
+                \wp_enqueue_script('lsky-pro-admin-keyword-rules', \plugins_url('assets/js/admin/keyword-rules.js', LSKY_PRO_PLUGIN_FILE), ['lsky-pro-admin-base'], $rulesJsVer, true);
                 break;
 
             case 'lsky-pro-config':

@@ -279,6 +279,7 @@ final class Settings
             ['id' => 'default_storage_id_user', 'title' => '普通用户默认存储策略', 'callback' => [$this, 'default_storage_user_callback']],
             ['id' => 'default_album_id_admin', 'title' => '管理员默认相册', 'callback' => [$this, 'default_album_admin_callback']],
             ['id' => 'default_album_id_user', 'title' => '普通用户默认相册', 'callback' => [$this, 'default_album_user_callback']],
+            ['id' => 'keyword_routing_rules', 'title' => '关键字策略规则', 'callback' => [$this, 'keyword_routing_rules_callback']],
             ['id' => 'admin_role_group', 'title' => '管理员用户组（WP 角色）', 'callback' => [$this, 'admin_role_group_callback']],
             ['id' => 'user_role_group', 'title' => '普通用户组（WP 角色）', 'callback' => [$this, 'user_role_group_callback']],
             ['id' => 'process_remote_images', 'title' => '远程图片处理', 'callback' => [$this, 'process_remote_images_callback']],
@@ -542,6 +543,91 @@ final class Settings
         $options = Options::normalized();
         $selected = (int) \absint((string) ($options['default_album_id_user'] ?? '0'));
         $this->renderAlbumSelect('default_album_id_user', $selected, '继承全局相册');
+    }
+
+    public function keyword_routing_rules_callback(): void
+    {
+        $options = Options::normalized();
+        $rules = $options['keyword_routing_rules'] ?? [];
+        if (!\is_array($rules)) {
+            $rules = [];
+        }
+
+        $rows = [];
+        foreach ($rules as $rule) {
+            if (!\is_array($rule)) {
+                continue;
+            }
+            $keywords = $rule['keywords'] ?? [];
+            $keywordsText = \is_array($keywords) ? \implode("\n", $keywords) : (string) $keywords;
+            $storageId = isset($rule['storage_id']) ? (string) $rule['storage_id'] : '';
+            $albumId = isset($rule['album_id']) ? (string) $rule['album_id'] : '0';
+            $rows[] = [
+                'keywords' => $keywordsText,
+                'storage_id' => $storageId,
+                'album_id' => $albumId,
+            ];
+        }
+
+        $nextIndex = \count($rows);
+        ?>
+        <div class="lsky-keyword-rules" data-next-index="<?php echo \esc_attr((string) $nextIndex); ?>">
+            <table class="widefat striped lsky-keyword-rules-table">
+                <thead>
+                    <tr>
+                        <th>关键字</th>
+                        <th>存储策略 ID</th>
+                        <th>相册 ID</th>
+                        <th class="lsky-rule-actions">操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php if (empty($rows)): ?>
+                        <tr class="lsky-keyword-rules-empty">
+                            <td colspan="4">暂无规则</td>
+                        </tr>
+                    <?php else: ?>
+                        <?php foreach ($rows as $i => $row): ?>
+                            <tr class="lsky-keyword-rule-row">
+                                <td>
+                                    <textarea class="large-text" rows="2" name="lsky_pro_options[keyword_routing_rules][<?php echo \esc_attr((string) $i); ?>][keywords]"><?php echo \esc_textarea($row['keywords']); ?></textarea>
+                                </td>
+                                <td>
+                                    <input class="lsky-input-small" type="number" min="1" name="lsky_pro_options[keyword_routing_rules][<?php echo \esc_attr((string) $i); ?>][storage_id]" value="<?php echo \esc_attr($row['storage_id']); ?>">
+                                </td>
+                                <td>
+                                    <input class="lsky-input-small" type="number" min="0" name="lsky_pro_options[keyword_routing_rules][<?php echo \esc_attr((string) $i); ?>][album_id]" value="<?php echo \esc_attr($row['album_id']); ?>">
+                                </td>
+                                <td class="lsky-rule-actions">
+                                    <button type="button" class="button lsky-rule-remove">删除</button>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
+                </tbody>
+            </table>
+            <p>
+                <button type="button" class="button lsky-rule-add">添加规则</button>
+            </p>
+            <script type="text/html" class="lsky-rule-template">
+                <tr class="lsky-keyword-rule-row">
+                    <td>
+                        <textarea class="large-text" rows="2" name="lsky_pro_options[keyword_routing_rules][__INDEX__][keywords]"></textarea>
+                    </td>
+                    <td>
+                        <input class="lsky-input-small" type="number" min="1" name="lsky_pro_options[keyword_routing_rules][__INDEX__][storage_id]" value="">
+                    </td>
+                    <td>
+                        <input class="lsky-input-small" type="number" min="0" name="lsky_pro_options[keyword_routing_rules][__INDEX__][album_id]" value="0">
+                    </td>
+                    <td class="lsky-rule-actions">
+                        <button type="button" class="button lsky-rule-remove">删除</button>
+                    </td>
+                </tr>
+            </script>
+            <p class="description">关键词支持逗号或换行分隔；按顺序匹配文件名（basename），命中第一条即使用对应存储策略与相册（相册留空则继承默认）。</p>
+        </div>
+        <?php
     }
 
     public function delete_remote_images_on_post_delete_callback(): void

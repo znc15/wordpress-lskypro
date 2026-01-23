@@ -100,6 +100,28 @@ table.widefat {
     transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
+.lsky-keyword-rules-table td {
+    vertical-align: top;
+}
+
+.lsky-keyword-rules-table textarea {
+    width: 100%;
+    min-height: 64px;
+}
+
+.lsky-keyword-rules-table input[type="number"] {
+    max-width: 160px;
+}
+
+.lsky-keyword-rules-empty td {
+    text-align: center;
+    color: #64748b;
+}
+
+.lsky-rule-actions {
+    width: 90px;
+}
+
 .lsky-dashboard .form-table input.regular-text:focus,
 .lsky-dashboard .form-table input[type="text"]:focus,
 .lsky-dashboard .form-table input[type="number"]:focus,
