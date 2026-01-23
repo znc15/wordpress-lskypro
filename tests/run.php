@@ -69,6 +69,23 @@ namespace {
 namespace {
     require_once __DIR__ . '/../src/Support/Options.php';
     require_once __DIR__ . '/../src/Module/Settings.php';
+    require_once __DIR__ . '/../src/Uploader/LoggingTrait.php';
+    require_once __DIR__ . '/../src/Uploader/RequirementsTrait.php';
+    require_once __DIR__ . '/../src/Uploader/ImageTrait.php';
+    require_once __DIR__ . '/../src/Uploader/RequestContextTrait.php';
+    require_once __DIR__ . '/../src/Uploader.php';
+
+    class UploaderForTest extends \LskyPro\Uploader
+    {
+        public function __construct()
+        {
+        }
+
+        public function resolveRuleForTest(string $basename, int $storageId, int $albumId): array
+        {
+            return $this->applyKeywordRules($basename, $storageId, $albumId);
+        }
+    }
 
     function assertSame($expected, $actual, string $label): void
     {
@@ -124,7 +141,26 @@ namespace {
         assertSame(true, \strpos($html, 'lsky-keyword-rules') !== false, 'renders keyword rules');
     }
 
+    function test_keyword_rules_apply(): void
+    {
+        $GLOBALS['__options']['lsky_pro_options'] = [
+            'keyword_routing_rules' => [
+                [
+                    'keywords' => ['promo', 'banner'],
+                    'storage_id' => '2',
+                    'album_id' => '0',
+                ],
+            ],
+        ];
+
+        $uploader = new UploaderForTest();
+        $result = $uploader->resolveRuleForTest('Big-Promo-Banner.jpg', 1, 5);
+        assertSame(2, $result['storage_id'], 'storage overridden');
+        assertSame(5, $result['album_id'], 'album inherited');
+    }
+
     test_keyword_rules_validation();
     test_keyword_rules_render();
+    test_keyword_rules_apply();
     fwrite(STDOUT, "OK\n");
 }

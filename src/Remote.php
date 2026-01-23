@@ -410,7 +410,7 @@ final class Remote
             return $url;
         }
 
-        $newUrl = $this->uploader->upload($filePath);
+        $newUrl = $this->uploader->upload($filePath, $url);
         if (!$newUrl) {
             $this->error = (string) $this->uploader->getError();
             return false;
@@ -461,7 +461,7 @@ final class Remote
 
         \error_log('LskyPro: 图片下载成功，临时文件: ' . $tempFile);
 
-        $newUrl = $this->uploader->upload($tempFile);
+        $newUrl = $this->uploader->upload($tempFile, $url);
 
         @\unlink($tempFile);
         \error_log('LskyPro: 清理临时文件: ' . $tempFile);

@@ -217,7 +217,68 @@ class Uploader
 		return $kb * 1024;
 	}
 
-	public function upload($file_path)
+	/**
+	 * @return array{storage_id:int,album_id:int}
+	 */
+	protected function applyKeywordRules(string $basename, int $storageId, int $albumId): array
+	{
+		$basename = \strtolower(\trim($basename));
+		if ($basename === '') {
+			return [
+				'storage_id' => $storageId,
+				'album_id' => $albumId,
+			];
+		}
+
+		$options = Options::normalized();
+		$rules = $options['keyword_routing_rules'] ?? [];
+		if (!\is_array($rules)) {
+			$rules = [];
+		}
+
+		foreach ($rules as $rule) {
+			if (!\is_array($rule)) {
+				continue;
+			}
+
+			$keywords = $rule['keywords'] ?? [];
+			if (!\is_array($keywords)) {
+				continue;
+			}
+
+			foreach ($keywords as $keyword) {
+				$keyword = \strtolower(\trim((string) $keyword));
+				if ($keyword === '') {
+					continue;
+				}
+				if (\strpos($basename, $keyword) === false) {
+					continue;
+				}
+
+				$ruleStorageId = (int) \absint((string) ($rule['storage_id'] ?? 0));
+				if ($ruleStorageId > 0) {
+					$storageId = $ruleStorageId;
+				}
+
+				$ruleAlbumId = (int) \absint((string) ($rule['album_id'] ?? 0));
+				if ($ruleAlbumId > 0) {
+					$albumId = $ruleAlbumId;
+				}
+
+				return [
+					'storage_id' => $storageId,
+					'album_id' => $albumId,
+				];
+			}
+		}
+
+		return [
+			'storage_id' => $storageId,
+			'album_id' => $albumId,
+		];
+	}
+
+	public function upload($file_path, string $source_url = '')
 	{
 		if ($this->api_url === '' || $this->token === '') {
 			$this->error = '未配置API地址或Token';
@@ -231,6 +292,20 @@ class Uploader
 		$currentUserId = \function_exists('get_current_user_id') ? (int) \get_current_user_id() : 0;
 		$storage_id = Options::resolveStorageIdForUser($currentUserId, $options);
 		$album_id = Options::resolveAlbumIdForUser($currentUserId, $options);
+
+		$basename = \basename((string) $file_path);
+		if ($source_url !== '') {
+			$path = \parse_url($source_url, \PHP_URL_PATH);
+			if (\is_string($path)) {
+				$fromUrl = \basename($path);
+				if ($fromUrl !== '') {
+					$basename = $fromUrl;
+				}
+			}
+		}
+		$ruleResult = $this->applyKeywordRules($basename, (int) $storage_id, (int) $album_id);
+		$storage_id = $ruleResult['storage_id'];
+		$album_id = $ruleResult['album_id'];
 
 		$storages = $this->get_strategies();
 		if (\is_array($storages) && !empty($storages)) {

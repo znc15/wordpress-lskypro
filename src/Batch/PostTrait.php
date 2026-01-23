@@ -77,7 +77,7 @@ trait PostTrait
                             continue;
                         }
 
-                        $new_url = $this->uploader->upload($temp_file);
+                        $new_url = $this->uploader->upload($temp_file, (string) $url);
                         if ($new_url) {
                             $content = \str_replace((string) $url, $new_url, $content);
                             $this->success++;
