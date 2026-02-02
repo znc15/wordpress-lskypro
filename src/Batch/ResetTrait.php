@@ -31,6 +31,10 @@ trait ResetTrait
             \wp_send_json_error(['message' => '重置失败']);
         }
 
+        if (\method_exists($this, 'clearBatchAsyncState')) {
+            $this->clearBatchAsyncState('post');
+        }
+
         \wp_send_json_success([
             'deleted' => (int) $deleted,
             'message' => \sprintf('已重置文章批处理进度（清理 %d 条进度记录）', (int) $deleted),
@@ -47,7 +51,16 @@ trait ResetTrait
 
         global $wpdb;
 
-        $meta_keys = ['_lsky_pro_photo_id'];
+        // Reset media batch progress by clearing lsky mapping & skip markers,
+        // so next run can truly re-process attachments.
+        $meta_keys = [
+            '_lsky_pro_url',
+            '_lsky_pro_photo_id',
+            $this->type_meta_key,
+            $this->batch_skip_meta_key,
+            $this->avatar_meta_key,
+            '_lsky_pro_batch_skip_reason',
+        ];
         $placeholders = \implode(',', \array_fill(0, \count($meta_keys), '%s'));
 
         $sql = "DELETE pm
@@ -63,9 +76,13 @@ trait ResetTrait
             \wp_send_json_error(['message' => '重置失败']);
         }
 
+        if (\method_exists($this, 'clearBatchAsyncState')) {
+            $this->clearBatchAsyncState('media');
+        }
+
         \wp_send_json_success([
             'deleted' => (int) $deleted,
-            'message' => \sprintf('已重置媒体库批处理进度（清理 %d 条 PhotoId 记录）', (int) $deleted),
+            'message' => \sprintf('已重置媒体库批处理进度（清理 %d 条图床/跳过记录）', (int) $deleted),
         ]);
     }
 }

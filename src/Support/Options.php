@@ -35,14 +35,19 @@ final class Options
             'user_role_group' => ['subscriber'],
 
             // Post lifecycle
-            'delete_remote_images_on_post_delete' => 1,
+            // Safer default: do not delete remote images unless explicitly enabled.
+            'delete_remote_images_on_post_delete' => 0,
 
             // Also delete WordPress media attachments referenced by the post when permanently deleting.
             // Note: if the same attachment is reused by multiple posts, enabling this will remove it everywhere.
-            'delete_wp_attachments_on_post_delete' => 1,
+            // Safer default: do not delete attachments unless explicitly enabled.
+            'delete_wp_attachments_on_post_delete' => 0,
 
             // Upload lifecycle
             'delete_local_files_after_upload' => 0,
+
+            // Media generation: whether to disable WordPress intermediate sizes generation (runtime filter only).
+            'disable_wp_image_sizes' => 0,
 
             'exclude_site_icon' => 1,
             'exclude_ajax_actions' => "avatar\n",

@@ -19,6 +19,7 @@ final class Plugin
             return;
         }
 
+        self::maybeInitializeOptions();
         self::migrateOptionsToV2();
 
         // Modules (hooks, UI, ajax)
@@ -32,6 +33,24 @@ final class Plugin
         new UploadHandler();
         new PostHandler();
         new Batch();
+    }
+
+    /**
+     * 初始化插件设置（仅在 option 不存在时创建），避免依赖“隐式默认值”导致行为在升级时漂移。
+     */
+    private static function maybeInitializeOptions(): void
+    {
+        if (!\function_exists('get_option') || !\function_exists('add_option')) {
+            return;
+        }
+
+        // Only initialize on fresh installs (option not present).
+        $existing = \get_option(Options::KEY);
+        if ($existing !== false) {
+            return;
+        }
+
+        \add_option(Options::KEY, Options::defaults());
     }
 
     private static function migrateOptionsToV2(): void

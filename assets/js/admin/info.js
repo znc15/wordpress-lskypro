@@ -320,13 +320,14 @@
     }
 
     function showError(message, ajaxEndpoint) {
+        var safeMessage = escapeHtml(message);
         $('#user-info').html(`
             <div class="text-center py-5">
                 <div class="mb-3">
                     <i class="dashicons dashicons-warning" style="font-size: 48px; color: #dc3232; width: 48px; height: 48px;"></i>
                 </div>
                 <h4 class="text-danger mb-3">加载失败</h4>
-                <p class="text-muted mb-4">${message}</p>
+                <p class="text-muted mb-4">${safeMessage}</p>
                 <button class="btn btn-primary" onclick="window.lskyProRetryLoad()">
                     <i class="dashicons dashicons-update" style="font-size: 16px; width: 16px; height: 16px;"></i>
                     重试

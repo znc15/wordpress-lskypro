@@ -14,9 +14,9 @@ LskyPro For WordPress 是一个专为 WordPress 设计的图床插件，可以�
 - **远程图片处理** 可以自动将文章中的远程图片上传到图床
 - **批量处理** 支持批量处理媒体库和文章中的图片
 - **自定义存储策略** 支持选择 LskyPro 的不同存储策略
-- **计划任务** 支持通过 Cron 任务定期处理图片
+- **后台队列** 保存文章/批处理支持后台任务执行（优先 Action Scheduler，fallback WP-Cron），减少阻塞与超时风险
 - **状态显示** 在媒体库中显示图片的图床状态
-- **安全可靠** 使用 WordPress 安全机制，确保数据传输安全
+- **安全可靠** Nonce/权限校验、远程下载 SSRF 防护、后台输出转义；HTTPS 默认启用证书校验（可通过 filter 配置）
 
 ## 安装方法
 
@@ -61,15 +61,22 @@ LskyPro For WordPress 是一个专为 WordPress 设计的图床插件，可以�
 - 确认 Token 是否有效 
 - 查看 WordPress 错误日志获取详细信息 
 
-### 计划任务不工作怎么办？
+### 后台队列不工作/处理一直没反应怎么办？
 
-- 确认系统 Cron 服务是否正常运行 
-- 检查 Cron 命令是否正确设置 
-- 验证 Cron 密码是否正确 
+- 确认站点未禁用 WP-Cron（`DISABLE_WP_CRON`）
+- 若站点禁用了 WP-Cron：建议安装/启用 Action Scheduler（很多电商/缓存插件会自带），或配置系统计划任务定时访问 `wp-cron.php`
+- 打开 `WP_DEBUG` + `WP_DEBUG_LOG` 后查看日志（默认写入 `wp-content/debug.log`；插件可选额外写入 `wp-content/uploads/lskypro-logs/`）
 
 ### 如何更改存储策略？
 
 在插件设置页面的"设置"选项卡中，可以选择不同的存储策略。
+
+## 安全与行为说明（必读）
+
+- **HTTPS 证书校验**：默认对 HTTPS 请求启用 `sslverify=true`。若你的 LskyPro 使用自签证书，可通过 `lsky_pro_sslverify` / `lsky_pro_http_sslverify` filter 覆盖。
+- **远程图片下载**：使用安全下载（`wp_safe_remote_get` + stream 落盘），并限制端口/大小/Content-Type，降低 SSRF 与资源消耗风险。
+- **删除联动**：删除文章时联动删除图床图片/媒体库附件属于高风险操作，新安装默认关闭；请在确认“图片不复用”后再开启。
+- **缩略图/中间尺寸**：插件不再在激活/停用时改写全站“媒体设置”。可在设置中选择是否禁用默认缩略图/中间尺寸生成。
 
 ## 版权信息
 

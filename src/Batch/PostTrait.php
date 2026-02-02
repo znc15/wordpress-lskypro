@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace LskyPro\Batch;
 
+use LskyPro\Support\RemoteDownloader;
+
 trait PostTrait
 {
     /**
@@ -175,28 +177,22 @@ trait PostTrait
 
     private function download_remote_image($url)
     {
-        $uploads = \wp_upload_dir();
-        $tmp_dir = (string) ($uploads['basedir'] ?? '') . '/temp';
-        if (!\file_exists($tmp_dir)) {
-            \wp_mkdir_p($tmp_dir);
+        $maxBytes = 0;
+        if (isset($this->uploader) && \is_object($this->uploader) && \method_exists($this->uploader, 'get_max_upload_size_bytes')) {
+            $maxBytes = (int) $this->uploader->get_max_upload_size_bytes();
         }
 
-        $temp_file = $tmp_dir . '/' . \uniqid('batch_', true) . '_' . \basename((string) $url);
-
-        $response = \wp_remote_get($url, [
+        $result = RemoteDownloader::downloadImage((string) $url, [
             'timeout' => 30,
-            'sslverify' => false,
+            'redirection' => 3,
+            'max_bytes' => $maxBytes,
         ]);
 
-        if (\is_wp_error($response) || (int) \wp_remote_retrieve_response_code($response) !== 200) {
+        if (\is_wp_error($result)) {
             return false;
         }
 
-        $image_data = (string) \wp_remote_retrieve_body($response);
-        if (\file_put_contents($temp_file, $image_data) === false) {
-            return false;
-        }
-
-        return $temp_file;
+        $file = isset($result['file']) ? (string) $result['file'] : '';
+        return ($file !== '' && \is_file($file)) ? $file : false;
     }
 }

@@ -4,45 +4,24 @@ declare(strict_types=1);
 
 namespace LskyPro\Uploader;
 
+use LskyPro\Support\Logger;
+
 trait LoggingTrait
 {
     private function debug_log($message)
     {
-        if (\defined('WP_DEBUG') && \WP_DEBUG) {
-            \error_log((string) $message);
-        }
+        Logger::debug((string) $message, [], 'uploader');
     }
 
     private function initializeLogDirectory()
     {
-        if (!\file_exists($this->log_dir)) {
-            if (!\wp_mkdir_p($this->log_dir)) {
-                \error_log('无法创建日志目录: ' . $this->log_dir);
-                return false;
-            }
+        // Prefer a safer, writable directory under uploads.
+        $dir = Logger::getLogDir();
+        if (\is_string($dir) && $dir !== '') {
+            $this->log_dir = $dir;
         }
 
-        if (!\is_writable($this->log_dir)) {
-            @\chmod($this->log_dir, 0755);
-            if (!\is_writable($this->log_dir)) {
-                \error_log('日志目录不可写: ' . $this->log_dir);
-                return false;
-            }
-        }
-
-        $htaccess_file = $this->log_dir . '/.htaccess';
-        if (!\file_exists($htaccess_file)) {
-            \file_put_contents($htaccess_file, "Deny from all\n");
-        }
-
-        $index_file = $this->log_dir . '/index.php';
-        if (!\file_exists($index_file)) {
-            \file_put_contents($index_file, '<?php // Silence is golden');
-        }
-
-        $this->initializeLogFile('upload.log');
-        $this->initializeLogFile('error.log');
-
+        // Directory creation and protections are handled by Logger when file logging is enabled.
         return true;
     }
 
@@ -57,67 +36,42 @@ trait LoggingTrait
 
     private function logSuccess($filename, $url)
     {
-        $log_file = $this->log_dir . '/upload.log';
         $context_suffix = '';
         if (\func_num_args() >= 3) {
             $context_suffix = $this->formatUploadLogContext(\func_get_arg(2));
         }
 
-        $log_message = \sprintf(
-            "[%s] 成功：%s => %s%s\n",
-            \date('Y-m-d H:i:s'),
-            $filename,
-            $url,
-            $context_suffix
-        );
-
-        if (\file_put_contents($log_file, $log_message, \FILE_APPEND | \LOCK_EX) === false) {
-            \error_log('写入成功日志失败');
-        }
+        Logger::info('upload', \sprintf('成功：%s => %s%s', $filename, $url, $context_suffix));
     }
 
     private function logError($filename, $error)
     {
-        $log_file = $this->log_dir . '/error.log';
         $context_suffix = '';
         if (\func_num_args() >= 3) {
             $context_suffix = $this->formatUploadLogContext(\func_get_arg(2));
         }
 
-        $log_message = \sprintf(
-            "[%s] 失败：%s - 错误：%s%s\n",
-            \date('Y-m-d H:i:s'),
-            \basename((string) $filename),
-            $error,
-            $context_suffix
-        );
-
-        if (\file_put_contents($log_file, $log_message, \FILE_APPEND | \LOCK_EX) === false) {
-            \error_log('写入错误日志失败');
-        }
+        Logger::error('error', \sprintf('失败：%s - 错误：%s%s', \basename((string) $filename), $error, $context_suffix));
     }
 
     private function logRouting($filename, $matched, $storage_id, $album_id)
     {
-        $log_file = $this->log_dir . '/upload.log';
         $context_suffix = '';
         if (\func_num_args() >= 5) {
             $context_suffix = $this->formatUploadLogContext(\func_get_arg(4));
         }
 
-        $log_message = \sprintf(
-            "[%s] 路由：%s | 匹配:%s | storage_id:%d | album_id:%d%s\n",
-            \date('Y-m-d H:i:s'),
-            \basename((string) $filename),
-            $matched ? '是' : '否',
-            (int) $storage_id,
-            (int) $album_id,
-            $context_suffix
+        Logger::info(
+            'upload',
+            \sprintf(
+                '路由：%s | 匹配:%s | storage_id:%d | album_id:%d%s',
+                \basename((string) $filename),
+                $matched ? '是' : '否',
+                (int) $storage_id,
+                (int) $album_id,
+                $context_suffix
+            )
         );
-
-        if (\file_put_contents($log_file, $log_message, \FILE_APPEND | \LOCK_EX) === false) {
-            \error_log('写入路由日志失败');
-        }
     }
 
     private function formatUploadLogContext($context)
@@ -160,18 +114,24 @@ trait LoggingTrait
 
     public function getLogContent($type = 'upload')
     {
-        $log_file = $this->log_dir . '/' . $type . '.log';
-        if (\file_exists($log_file)) {
-            return \file_get_contents($log_file);
+        $dir = Logger::getLogDir();
+        $log_file = ($dir !== '' ? ($dir . '/' . $type . '.log') : '');
+        if ($log_file !== '' && \file_exists($log_file)) {
+            return (string) \file_get_contents($log_file);
         }
         return '暂无记录';
     }
 
     public function clearLogs()
     {
+        $dir = Logger::getLogDir();
+        if ($dir === '') {
+            return;
+        }
+
         $log_files = ['upload.log', 'error.log'];
         foreach ($log_files as $file) {
-            $log_file = $this->log_dir . '/' . $file;
+            $log_file = $dir . '/' . $file;
             if (\file_exists($log_file)) {
                 @\unlink($log_file);
             }

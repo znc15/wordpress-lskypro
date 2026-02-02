@@ -16,11 +16,28 @@ final class Http
      */
     public static function requestWithFallback(string $url, array $args = [])
     {
+        $scheme = '';
+        if (\function_exists('wp_parse_url')) {
+            $scheme = (string) \wp_parse_url($url, \PHP_URL_SCHEME);
+        } else {
+            $scheme = (string) \parse_url($url, \PHP_URL_SCHEME);
+        }
+
+        $isHttps = \strtolower($scheme) === 'https';
+
+        // Safer default: verify SSL certs on HTTPS. Allow site owners to override via filters
+        // (e.g. for self-signed certificates in internal deployments).
+        $sslVerifyDefault = $isHttps;
+        if (\function_exists('apply_filters')) {
+            $sslVerifyDefault = (bool) \apply_filters('lsky_pro_sslverify', $sslVerifyDefault);
+            $sslVerifyDefault = (bool) \apply_filters('lsky_pro_http_sslverify', $sslVerifyDefault, $url, $args);
+        }
+
         $defaults = [
             'timeout' => 30,
             'redirection' => 5,
             'httpversion' => '1.1',
-            'sslverify' => false,
+            'sslverify' => $sslVerifyDefault,
         ];
 
         $args = \array_merge($defaults, $args);

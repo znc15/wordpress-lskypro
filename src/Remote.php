@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace LskyPro;
 
 use LskyPro\Support\UploadExclusions;
+use LskyPro\Support\RemoteDownloader;
+use LskyPro\Support\Logger;
 
 final class Remote
 {
@@ -48,7 +50,7 @@ final class Remote
             $existingLock = (int) $existingLock;
             if ($existingLock > 0 && ($now - $existingLock) < $lockTtlSeconds) {
                 $this->error = '文章正在处理远程图片，请稍后重试';
-                \error_log("LskyPro: 文章 {$postId} 正在处理中，跳过本次处理");
+                Logger::debug("文章 {$postId} 正在处理中，跳过本次处理", [], 'remote');
                 return false;
             }
         }
@@ -56,7 +58,7 @@ final class Remote
         \delete_post_meta($postId, $lockMetaKey);
         if (!\add_post_meta($postId, $lockMetaKey, (string) $now, true)) {
             $this->error = '文章正在处理远程图片，请稍后重试';
-            \error_log("LskyPro: 文章 {$postId} 加锁失败，可能并发处理中");
+            Logger::warning('remote', "文章 {$postId} 加锁失败，可能并发处理中");
             return false;
         }
 
@@ -68,11 +70,11 @@ final class Remote
             $content = \get_post_field('post_content', $postId);
             if (empty($content)) {
                 $this->error = '文章内容为空';
-                \error_log("LskyPro: 文章 {$postId} 内容为空");
+                Logger::warning('remote', "文章 {$postId} 内容为空");
                 return false;
             }
 
-            \error_log("LskyPro: 开始处理文章 {$postId} 的远程图片");
+            Logger::debug("开始处理文章 {$postId} 的远程图片", [], 'remote');
 
             $pattern = '/<img[^>]+src=([\'\"])(https?:\/\/[^>]+?)\1[^>]*>/i';
             $siteUrl = \get_site_url();
@@ -99,10 +101,10 @@ final class Remote
             };
 
             if (\preg_match_all($pattern, $content, $matches)) {
-                \error_log('LskyPro: 在文章 ' . $postId . ' 中找到 ' . \count($matches[2]) . ' 个图片');
+                Logger::debug('在文章 ' . $postId . ' 中找到 ' . \count($matches[2]) . ' 个图片', [], 'remote');
 
                 foreach ($matches[2] as $url) {
-                    \error_log('LskyPro: 处理图片URL: ' . $url);
+                    Logger::debug('处理图片URL: ' . $url, [], 'remote');
 
                     $urlClean = (string) $url;
                     $parsed = \wp_parse_url($urlClean);
@@ -111,11 +113,11 @@ final class Remote
                     }
 
                     if (isset($processedUrls[$urlClean])) {
-                        \error_log('LskyPro: 找到已处理图片的图床地址: ' . $processedUrls[$urlClean]);
+                        Logger::debug('找到已处理图片的图床地址: ' . $processedUrls[$urlClean], [], 'remote');
                         if ($url !== $processedUrls[$urlClean]) {
                             $content = \str_replace($url, $processedUrls[$urlClean], $content);
                             $updated = true;
-                            \error_log('LskyPro: 替换为图床地址');
+                            Logger::debug('替换为图床地址', [], 'remote');
                         }
 
                         // If we previously recorded photo_id for this URL, keep it.
@@ -126,13 +128,13 @@ final class Remote
                     }
 
                     if (\strpos($urlClean, $siteUrl) !== false && !$this->isLskyUrl($urlClean) && $baseurl !== '' && \strpos($urlClean, $baseurl) === 0) {
-                        \error_log('LskyPro: 检测到本站媒体图片，准备上传: ' . $urlClean);
+                        Logger::debug('检测到本站媒体图片，准备上传: ' . $urlClean, [], 'remote');
 
                         $attachmentId = \attachment_url_to_postid($urlClean);
 
                         $newUrl = $this->processLocalMediaImage($urlClean);
                         if ($newUrl) {
-                            \error_log('LskyPro: 本站媒体图片上传成功，新URL: ' . $newUrl);
+                            Logger::debug('本站媒体图片上传成功，新URL: ' . $newUrl, [], 'remote');
                             $content = \str_replace($url, $newUrl, $content);
                             $processedUrls[$urlClean] = $newUrl;
                             $persistProcessedUrls();
@@ -159,7 +161,7 @@ final class Remote
                             $this->processed++;
                             $updated = true;
                         } else {
-                            \error_log('LskyPro: 本站媒体图片处理失败: ' . $this->error);
+                            Logger::warning('remote', '本站媒体图片处理失败: ' . (string) $this->error);
                             $this->failed++;
                         }
 
@@ -167,11 +169,11 @@ final class Remote
                     }
 
                     if (\strpos($urlClean, $siteUrl) === false && !$this->isLskyUrl($urlClean)) {
-                        \error_log('LskyPro: 检测到外链图片，准备上传: ' . $url);
+                        Logger::debug('检测到外链图片，准备上传: ' . $url, [], 'remote');
 
                         $newUrl = $this->processRemoteImage($url);
                         if ($newUrl) {
-                            \error_log('LskyPro: 图片上传成功，新URL: ' . $newUrl);
+                            Logger::debug('图片上传成功，新URL: ' . $newUrl, [], 'remote');
                             $content = \str_replace($url, $newUrl, $content);
                             $processedUrls[$urlClean] = $newUrl;
                             $persistProcessedUrls();
@@ -188,24 +190,24 @@ final class Remote
                             $this->processed++;
                             $updated = true;
                         } else {
-                            \error_log('LskyPro: 图片处理失败: ' . $this->error);
+                            Logger::warning('remote', '图片处理失败: ' . (string) $this->error);
                             $this->failed++;
                         }
                     } else {
-                        \error_log('LskyPro: 跳过本站或图床图片: ' . $url);
+                        Logger::debug('跳过本站或图床图片: ' . $url, [], 'remote');
                         $processedUrls[$urlClean] = $url;
                         $persistProcessedUrls();
                     }
                 }
             } else {
-                \error_log('LskyPro: 文章 ' . $postId . ' 中未找到需要处理的图片');
+                Logger::debug('文章 ' . $postId . ' 中未找到需要处理的图片', [], 'remote');
             }
 
             $persistProcessedUrls();
             $persistProcessedPhotoIds();
 
             if ($updated) {
-                \error_log('LskyPro: 更新文章 ' . $postId . ' 内容');
+                Logger::debug('更新文章 ' . $postId . ' 内容', [], 'remote');
 
                 global $wpdb;
 
@@ -225,14 +227,14 @@ final class Remote
                 );
 
                 if ($updatedRows === false) {
-                    \error_log('LskyPro: 更新文章 ' . $postId . ' 失败 - 数据库更新失败');
+                    Logger::warning('remote', '更新文章 ' . $postId . ' 失败 - 数据库更新失败');
                 } else {
                     if (\function_exists('clean_post_cache')) {
                         \clean_post_cache($postId);
                     }
                 }
 
-                \error_log('LskyPro: 文章处理完成 - 成功: ' . $this->processed . ', 失败: ' . $this->failed);
+                Logger::debug('文章处理完成 - 成功: ' . $this->processed . ', 失败: ' . $this->failed, [], 'remote');
             }
 
             return true;
@@ -344,7 +346,7 @@ final class Remote
                     $processedPhotoIds[$urlClean] = $photoId;
                 }
             } else {
-                \error_log('LskyPro: zib_other_data 图片处理失败: ' . (string) $this->error);
+                Logger::warning('remote', 'zib_other_data 图片处理失败: ' . (string) $this->error, ['post_id' => $postId]);
             }
         }
 
@@ -436,7 +438,7 @@ final class Remote
         $apiUrl = \is_array($options) && isset($options['lsky_pro_api_url']) ? (string) $options['lsky_pro_api_url'] : '';
 
         if ($apiUrl === '') {
-            \error_log('LskyPro: 未配置图床API URL');
+            Logger::warning('remote', '未配置图床API URL');
             return false;
         }
 
@@ -444,90 +446,67 @@ final class Remote
         $urlDomain = \parse_url($url, PHP_URL_HOST);
 
         $isLsky = $apiDomain === $urlDomain;
-        \error_log('LskyPro: 检查URL ' . $url . ' 是否为图床URL: ' . ($isLsky ? '是' : '否'));
+        Logger::debug('检查URL ' . $url . ' 是否为图床URL: ' . ($isLsky ? '是' : '否'), [], 'remote');
 
         return $isLsky;
     }
 
     protected function processRemoteImage(string $url)
     {
-        \error_log('LskyPro: 开始处理远程图片: ' . $url);
+        Logger::debug('开始处理远程图片: ' . $url, [], 'remote');
 
         $tempFile = $this->downloadImage($url);
         if (!$tempFile) {
-            \error_log('LskyPro: 下载图片失败: ' . $this->error);
+            Logger::warning('remote', '下载图片失败: ' . (string) $this->error);
             return false;
         }
 
-        \error_log('LskyPro: 图片下载成功，临时文件: ' . $tempFile);
+        Logger::debug('图片下载成功，临时文件: ' . $tempFile, [], 'remote');
 
         $newUrl = $this->uploader->upload($tempFile, $url);
 
         @\unlink($tempFile);
-        \error_log('LskyPro: 清理临时文件: ' . $tempFile);
+        Logger::debug('清理临时文件: ' . $tempFile, [], 'remote');
 
         if (!$newUrl) {
             $this->error = (string) $this->uploader->getError();
-            \error_log('LskyPro: 上传到图床失败: ' . $this->error);
+            Logger::warning('remote', '上传到图床失败: ' . (string) $this->error);
             return false;
         }
 
-        \error_log('LskyPro: 上传到图床成功，新URL: ' . $newUrl);
+        Logger::debug('上传到图床成功，新URL: ' . $newUrl, [], 'remote');
         return $newUrl;
     }
 
     private function downloadImage(string $url)
     {
-        $uploads = \wp_upload_dir();
-        $tmpDir = (isset($uploads['basedir']) ? (string) $uploads['basedir'] : '') . '/temp';
-        if ($tmpDir === '') {
-            $this->error = '无法获取 uploads 目录';
+        $maxBytes = 0;
+        if ($this->uploader && \method_exists($this->uploader, 'get_max_upload_size_bytes')) {
+            $maxBytes = (int) $this->uploader->get_max_upload_size_bytes();
+        }
+
+        $result = RemoteDownloader::downloadImage($url, [
+            'timeout' => 30,
+            'redirection' => 3,
+            'max_bytes' => $maxBytes,
+            // 旧实现使用浏览器 UA；这里保持一个通用 UA，便于部分站点放行。
+            'user_agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        ]);
+
+        if (\is_wp_error($result)) {
+            $this->error = (string) $result->get_error_message();
+            Logger::warning('remote', '下载远程图片失败: ' . (string) $this->error);
             return false;
         }
 
-        if (!\file_exists($tmpDir)) {
-            \wp_mkdir_p($tmpDir);
-        }
-
-        $path = \parse_url($url, PHP_URL_PATH);
-        $basename = \is_string($path) ? \basename($path) : '';
-        if ($basename === '') {
-            $basename = 'remote';
-        }
-
-        $tempFile = $tmpDir . '/' . \uniqid('remote_', true) . '_' . $basename;
-        \error_log('LskyPro: 下载图片 ' . $url . ' 到临时文件 ' . $tempFile);
-
-        $response = \wp_remote_get(
-            $url,
-            [
-                'timeout' => 30,
-                'sslverify' => false,
-                'user-agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-            ]
-        );
-
-        if (\is_wp_error($response)) {
-            $this->error = '下载远程图片失败: ' . $response->get_error_message();
-            \error_log('LskyPro: ' . $this->error);
+        $tempFile = isset($result['file']) ? (string) $result['file'] : '';
+        if ($tempFile === '' || !\is_file($tempFile)) {
+            $this->error = '下载远程图片失败：临时文件不存在';
+            Logger::warning('remote', (string) $this->error);
             return false;
         }
 
-        $responseCode = \wp_remote_retrieve_response_code($response);
-        if ($responseCode !== 200) {
-            $this->error = '下载远程图片失败: HTTP ' . $responseCode;
-            \error_log('LskyPro: ' . $this->error);
-            return false;
-        }
-
-        $imageData = \wp_remote_retrieve_body($response);
-        if (\file_put_contents($tempFile, $imageData) === false) {
-            $this->error = '保存临时文件失败: ' . $tempFile;
-            \error_log('LskyPro: ' . $this->error);
-            return false;
-        }
-
-        \error_log('LskyPro: 图片下载成功');
+        Logger::debug('图片下载成功', [], 'remote');
         return $tempFile;
     }
 

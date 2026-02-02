@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace LskyPro\Module;
 
+use LskyPro\Support\Options;
+
 final class Media
 {
     public function register(): void
@@ -13,9 +15,6 @@ final class Media
 
         \add_filter('intermediate_image_sizes_advanced', [$this, 'disable_image_sizes']);
         \add_filter('big_image_size_threshold', [$this, 'disable_scaled_image_size']);
-
-        \register_activation_hook(LSKY_PRO_PLUGIN_FILE, [$this, 'activate']);
-        \register_deactivation_hook(LSKY_PRO_PLUGIN_FILE, [$this, 'deactivate']);
     }
 
     /**
@@ -58,6 +57,10 @@ final class Media
      */
     public function disable_image_sizes(array $sizes): array
     {
+        if (!$this->shouldDisableWpImageSizes()) {
+            return $sizes;
+        }
+
         foreach (['thumbnail', 'medium', 'medium_large', 'large'] as $size) {
             unset($sizes[$size]);
         }
@@ -67,30 +70,41 @@ final class Media
 
     public function disable_scaled_image_size($default): bool
     {
+        if (!$this->shouldDisableWpImageSizes()) {
+            return (bool) $default;
+        }
+
         return false;
     }
 
-    public function activate(): void
+    /**
+     * 是否禁用 WordPress 默认缩略图/中间尺寸生成。
+     *
+     * 兼容策略：
+     * - 若站点尚未保存过插件设置（option 不存在），保持旧版本行为：默认禁用（返回 true）
+     * - 若设置已存在且显式配置了 disable_wp_image_sizes，则按其值执行
+     * - 也可通过 filter `lsky_pro_disable_wp_image_sizes` 覆盖
+     */
+    private function shouldDisableWpImageSizes(): bool
     {
-        \update_option('thumbnail_size_w', 0);
-        \update_option('thumbnail_size_h', 0);
-        \update_option('medium_size_w', 0);
-        \update_option('medium_size_h', 0);
-        \update_option('medium_large_size_w', 0);
-        \update_option('medium_large_size_h', 0);
-        \update_option('large_size_w', 0);
-        \update_option('large_size_h', 0);
-    }
+        $raw = \get_option(Options::KEY);
 
-    public function deactivate(): void
-    {
-        \update_option('thumbnail_size_w', 150);
-        \update_option('thumbnail_size_h', 150);
-        \update_option('medium_size_w', 300);
-        \update_option('medium_size_h', 300);
-        \update_option('medium_large_size_w', 768);
-        \update_option('medium_large_size_h', 0);
-        \update_option('large_size_w', 1024);
-        \update_option('large_size_h', 1024);
+        $enabled = null;
+        if (\is_array($raw) && \array_key_exists('disable_wp_image_sizes', $raw)) {
+            $enabled = !empty($raw['disable_wp_image_sizes']);
+        } elseif ($raw === false) {
+            // Backward compatible default (older versions always disabled sizes).
+            $enabled = true;
+        }
+
+        if ($enabled === null) {
+            $enabled = true;
+        }
+
+        if (\function_exists('apply_filters')) {
+            $enabled = (bool) \apply_filters('lsky_pro_disable_wp_image_sizes', $enabled, $raw);
+        }
+
+        return $enabled;
     }
 }

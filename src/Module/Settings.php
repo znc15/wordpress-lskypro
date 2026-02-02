@@ -97,6 +97,8 @@ final class Settings
 
         $clean['delete_local_files_after_upload'] = (!empty($input['delete_local_files_after_upload']) && (string) $input['delete_local_files_after_upload'] === '1') ? 1 : 0;
 
+        $clean['disable_wp_image_sizes'] = (!empty($input['disable_wp_image_sizes']) && (string) $input['disable_wp_image_sizes'] === '1') ? 1 : 0;
+
         $clean['process_remote_images'] = (!empty($input['process_remote_images']) && (string) $input['process_remote_images'] === '1') ? 1 : 0;
 
         $clean['exclude_site_icon'] = (!empty($input['exclude_site_icon']) && (string) $input['exclude_site_icon'] === '1') ? 1 : 0;
@@ -286,6 +288,7 @@ final class Settings
             ['id' => 'delete_remote_images_on_post_delete', 'title' => '删除文章时删除图床图片', 'callback' => [$this, 'delete_remote_images_on_post_delete_callback']],
             ['id' => 'delete_wp_attachments_on_post_delete', 'title' => '删除文章时删除媒体库附件', 'callback' => [$this, 'delete_wp_attachments_on_post_delete_callback']],
             ['id' => 'delete_local_files_after_upload', 'title' => '上传后删除本地文件', 'callback' => [$this, 'delete_local_files_after_upload_callback']],
+            ['id' => 'disable_wp_image_sizes', 'title' => '缩略图/中间尺寸生成', 'callback' => [$this, 'disable_wp_image_sizes_callback']],
             ['id' => 'exclude_site_icon', 'title' => '排除站点图标', 'callback' => [$this, 'exclude_site_icon_callback']],
             ['id' => 'exclude_ajax_actions', 'title' => '排除头像上传（AJAX action）', 'callback' => [$this, 'exclude_ajax_actions_callback']],
             ['id' => 'exclude_referer_contains', 'title' => '排除头像上传（Referer 关键字）', 'callback' => [$this, 'exclude_referer_contains_callback']],
@@ -636,7 +639,13 @@ final class Settings
         $checked = isset($options['delete_remote_images_on_post_delete']) && (int) $options['delete_remote_images_on_post_delete'] === 1;
         ?>
         <label>
-            <input type="checkbox" name="lsky_pro_options[delete_remote_images_on_post_delete]" value="1" <?php \checked($checked); ?>>
+            <input
+                type="checkbox"
+                name="lsky_pro_options[delete_remote_images_on_post_delete]"
+                value="1"
+                <?php \checked($checked); ?>
+                onclick="if (this.checked) { return confirm('确定要开启“删除文章时删除图床图片”吗？\\n\\n注意：若同一图床图片被多个文章复用，开启后可能误删。'); } return true;"
+            >
             文章被永久删除时（清空回收站/彻底删除），同时删除该文章关联的图床图片
         </label>
         <p class="description">包含：插件处理外链/本站媒体图片时上传到图床并记录的 photo_id；文章内容里引用到的媒体库附件（若附件已写入 <code>_lsky_pro_photo_id</code>）。注意：若同一附件/图床图在多个文章复用，开启后会一起删。</p>
@@ -649,7 +658,13 @@ final class Settings
         $checked = isset($options['delete_wp_attachments_on_post_delete']) && (int) $options['delete_wp_attachments_on_post_delete'] === 1;
         ?>
         <label>
-            <input type="checkbox" name="lsky_pro_options[delete_wp_attachments_on_post_delete]" value="1" <?php \checked($checked); ?>>
+            <input
+                type="checkbox"
+                name="lsky_pro_options[delete_wp_attachments_on_post_delete]"
+                value="1"
+                <?php \checked($checked); ?>
+                onclick="if (this.checked) { return confirm('危险操作：确定要开启“删除文章时删除媒体库附件”吗？\\n\\n提示：如果附件被多个文章复用，开启后会导致其他文章也失去该媒体。'); } return true;"
+            >
             文章被永久删除时，同时删除该文章关联/引用到的媒体库附件（wp_delete_attachment）
         </label>
         <p class="description">危险操作：如果同一附件被多个文章复用，开启后会导致其他文章也失去该媒体。建议仅在你确认站点图片不复用或可接受的情况下开启。</p>
@@ -666,6 +681,20 @@ final class Settings
             图片成功上传到图床并写入附件信息后，删除本地 uploads 原图与缩略图
         </label>
         <p class="description">谨慎开启：开启后媒体库中将不再保留本地文件，仅保留图床 URL（通过 <code>wp_get_attachment_url</code> 返回）。某些依赖本地文件的功能（如裁剪/重新生成缩略图/离线备份）可能不可用。</p>
+        <?php
+    }
+
+    public function disable_wp_image_sizes_callback(): void
+    {
+        $options = Options::normalized();
+        $checked = isset($options['disable_wp_image_sizes']) && (int) $options['disable_wp_image_sizes'] === 1;
+        ?>
+        <label>
+            <input type="checkbox" name="lsky_pro_options[disable_wp_image_sizes]" value="1" <?php \checked($checked); ?>>
+            禁用 WordPress 默认缩略图/中间尺寸生成（thumbnail/medium/large 等）
+        </label>
+        <p class="description">说明：该选项不会修改全站“媒体设置”里的尺寸选项，仅在运行时通过 filter 禁用默认尺寸生成。</p>
+        <p class="description" style="color: #d63638;">谨慎开启：部分主题/插件可能依赖缩略图/中间尺寸与 srcset，禁用后可能影响显示或响应式图片效果。</p>
         <?php
     }
 

@@ -6,6 +6,7 @@ namespace LskyPro;
 
 use LskyPro\Support\UploadExclusions;
 use LskyPro\Support\Options;
+use LskyPro\Support\Logger;
 
 final class UploadHandler
 {
@@ -24,54 +25,25 @@ final class UploadHandler
 
     private function debugLog(string $message, $context = null): void
     {
-        if (!\defined('WP_DEBUG') || WP_DEBUG !== true) {
-            return;
-        }
-
+        $ctx = [];
         if ($context !== null) {
-            $message .= ' ' . \print_r($context, true);
+            $ctx = ['context' => $context];
         }
-
-        \error_log('[LskyPro] ' . (string) $message);
+        Logger::debug($message, $ctx, 'upload-handler');
     }
 
     private function logError(string $filename, string $error): void
     {
-        $logDir = LSKY_PRO_PLUGIN_DIR . 'logs';
-        $logFile = $logDir . '/error.log';
-
-        if (!\file_exists($logDir)) {
-            \wp_mkdir_p($logDir);
-        }
-
-        $logMessage = \sprintf(
-            "[%s] 失败: %s - 错误: %s（本地文件已保留）\n",
-            \date('Y-m-d H:i:s'),
-            \basename($filename),
-            $error
+        Logger::error(
+            'error',
+            \sprintf('失败: %s - 错误: %s（本地文件已保留）', \basename($filename), $error),
+            ['file' => $filename]
         );
-
-        \file_put_contents($logFile, $logMessage, FILE_APPEND | LOCK_EX);
     }
 
     private function writeUploadLog(string $message, array $context = []): void
     {
-        $dir = \dirname($this->uploadLogFile);
-        if (!\is_dir($dir)) {
-            \wp_mkdir_p($dir);
-        }
-
-        $time = \date('Y-m-d H:i:s');
-        $line = '[' . $time . '] ' . $message;
-        if (!empty($context)) {
-            $json = \wp_json_encode($context, \JSON_UNESCAPED_UNICODE | \JSON_UNESCAPED_SLASHES);
-            if (\is_string($json) && $json !== '') {
-                $line .= ' ' . $json;
-            }
-        }
-        $line .= "\n";
-
-        @\file_put_contents($this->uploadLogFile, $line, FILE_APPEND | LOCK_EX);
+        Logger::info('upload', $message, $context);
     }
 
     private function addAdminNotice(string $type, string $message): void

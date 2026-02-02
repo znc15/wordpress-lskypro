@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace LskyPro;
 
-use LskyPro\Support\Http;
+use LskyPro\Client\LskyClient;
 use LskyPro\Support\Options;
 use LskyPro\Uploader\ImageTrait;
 use LskyPro\Uploader\LoggingTrait;
@@ -22,6 +22,7 @@ class Uploader
 	private string $token = '';
 	private string $error = '';
 	private string $log_dir = '';
+	private LskyClient $client;
 
 	/** @var array<string, mixed> */
 	private array $requirements = [];
@@ -44,6 +45,8 @@ class Uploader
 		$this->initializeLogDirectory();
 
 		$this->checkRequirements();
+
+		$this->client = new LskyClient($this->api_url, $this->token);
 	}
 
 	/**
@@ -87,43 +90,13 @@ class Uploader
 
 	public function get_user_info()
 	{
-		$options = Options::normalized();
-		$apiUrl = isset($options['lsky_pro_api_url']) ? (string) $options['lsky_pro_api_url'] : '';
-		$token = isset($options['lsky_pro_token']) ? (string) $options['lsky_pro_token'] : '';
-
-		if ($apiUrl === '' || $token === '') {
-			$this->error = '请先配置 API 地址和 Token';
+		$res = $this->client->getUserProfileResponse();
+		if ($res === false) {
+			$this->error = $this->client->getError();
 			return false;
 		}
 
-		$response = Http::requestWithFallback(
-			\rtrim($apiUrl, '/') . '/user/profile',
-			[
-				'method' => 'GET',
-				'headers' => [
-					'Authorization' => 'Bearer ' . $token,
-					'Accept' => 'application/json',
-				],
-			]
-		);
-
-		if (\is_wp_error($response)) {
-			$this->error = $response->get_error_message();
-			return false;
-		}
-
-		$body = \json_decode((string) \wp_remote_retrieve_body($response), true);
-		if (!\is_array($body)) {
-			$this->error = '获取用户信息失败：响应解析失败';
-			return false;
-		}
-
-		if (!isset($body['status']) || $body['status'] !== 'success') {
-			$this->error = isset($body['message']) ? (string) $body['message'] : '获取用户信息失败';
-			return false;
-		}
-
-		return $body['data'] ?? false;
+		return \is_array($res) && isset($res['data']) ? $res['data'] : false;
 	}
 
 	public function getError()
@@ -133,50 +106,13 @@ class Uploader
 
 	public function get_group_info()
 	{
-		$options = Options::normalized();
-		$apiUrl = isset($options['lsky_pro_api_url']) ? (string) $options['lsky_pro_api_url'] : '';
-		$token = isset($options['lsky_pro_token']) ? (string) $options['lsky_pro_token'] : '';
-
-		if ($apiUrl === '' || $token === '') {
-			$this->error = '请先配置 API 地址和 Token';
+		$res = $this->client->getGroupResponse();
+		if ($res === false) {
+			$this->error = $this->client->getError();
 			return false;
 		}
 
-		$cacheKey = 'lsky_pro_group_' . \md5($apiUrl . '|' . $token);
-		$cached = \get_transient($cacheKey);
-		if (\is_array($cached)) {
-			return $cached;
-		}
-
-		$response = Http::requestWithFallback(
-			\rtrim($apiUrl, '/') . '/group',
-			[
-				'method' => 'GET',
-				'headers' => [
-					'Authorization' => 'Bearer ' . $token,
-					'Accept' => 'application/json',
-				],
-			]
-		);
-
-		if (\is_wp_error($response)) {
-			$this->error = $response->get_error_message();
-			return false;
-		}
-
-		$data = \json_decode((string) \wp_remote_retrieve_body($response), true);
-		if (!\is_array($data)) {
-			$this->error = '获取组信息失败：响应解析失败';
-			return false;
-		}
-
-		if (!isset($data['status']) || $data['status'] !== 'success') {
-			$this->error = isset($data['message']) ? (string) $data['message'] : '获取组信息失败';
-			return false;
-		}
-
-		\set_transient($cacheKey, $data, 10 * \MINUTE_IN_SECONDS);
-		return $data;
+		return $res;
 	}
 
 	public function get_allowed_file_types(): array
@@ -669,59 +605,15 @@ class Uploader
 			return true;
 		}
 
-		if ($this->api_url === '' || $this->token === '') {
-			$this->error = '未配置API地址或Token';
-			return false;
+		$ok = $this->client->deletePhotos($ids);
+		if (!$ok) {
+			$this->error = $this->client->getError();
 		}
-
-		$url = \rtrim($this->api_url, '/') . '/user/photos';
-		$body = \wp_json_encode($ids, \JSON_UNESCAPED_UNICODE | \JSON_UNESCAPED_SLASHES);
-		if (!\is_string($body)) {
-			$body = '[]';
-		}
-
-		$response = Http::requestWithFallback(
-			$url,
-			[
-				'method' => 'DELETE',
-				'headers' => [
-					'Authorization' => 'Bearer ' . (string) $this->token,
-					'Accept' => 'application/json',
-					'Content-Type' => 'application/json',
-				],
-				'body' => $body,
-			]
-		);
-
-		if (\is_wp_error($response)) {
-			$this->error = $response->get_error_message();
-			return false;
-		}
-
-		$http_code = (int) \wp_remote_retrieve_response_code($response);
-		if ($http_code === 204) {
-			return true;
-		}
-
-		if ($http_code >= 200 && $http_code < 300) {
-			return true;
-		}
-
-		$this->error = '删除失败，HTTP ' . $http_code;
-		return false;
+		return $ok;
 	}
 
 	public function get_strategies()
 	{
-		$options = Options::normalized();
-		$apiUrl = isset($options['lsky_pro_api_url']) ? (string) $options['lsky_pro_api_url'] : '';
-		$token = isset($options['lsky_pro_token']) ? (string) $options['lsky_pro_token'] : '';
-
-		if ($apiUrl === '' || $token === '') {
-			$this->error = '请先配置 API 地址和 Token';
-			return false;
-		}
-
 		$group = $this->get_group_info();
 		if ($group === false) {
 			return false;
@@ -737,181 +629,24 @@ class Uploader
 
 	public function get_albums($page = 1, $per_page = 100, $q = null)
 	{
-		$options = Options::normalized();
-		$apiUrl = isset($options['lsky_pro_api_url']) ? (string) $options['lsky_pro_api_url'] : '';
-		$token = isset($options['lsky_pro_token']) ? (string) $options['lsky_pro_token'] : '';
-
-		if ($apiUrl === '' || $token === '') {
-			$this->error = '请先配置 API 地址和 Token';
+		$q = \is_string($q) ? $q : '';
+		$res = $this->client->getAlbumsResponse((int) $page, (int) $per_page, $q);
+		if ($res === false) {
+			$this->error = $this->client->getError();
 			return false;
 		}
-
-		$page = (int) $page;
-		if ($page <= 0) {
-			$page = 1;
-		}
-
-		$per_page = (int) $per_page;
-		if ($per_page <= 0) {
-			$per_page = 100;
-		}
-
-		$q = \is_string($q) ? \trim($q) : '';
-
-		$cache_key = 'lsky_pro_albums_' . \md5($apiUrl . '|' . $token . '|' . $page . '|' . $per_page . '|' . $q);
-		$cached = \get_transient($cache_key);
-		if (\is_array($cached)) {
-			return $cached;
-		}
-
-		$url = \rtrim($apiUrl, '/') . '/user/albums';
-		$args = [
-			'page' => $page,
-			'per_page' => $per_page,
-		];
-		if ($q !== '') {
-			$args['q'] = $q;
-		}
-		$url = \add_query_arg($args, $url);
-
-		$response = Http::requestWithFallback(
-			$url,
-			[
-				'method' => 'GET',
-				'headers' => [
-					'Authorization' => 'Bearer ' . $token,
-					'Accept' => 'application/json',
-				],
-			]
-		);
-
-		if (\is_wp_error($response)) {
-			$this->error = $response->get_error_message();
-			return false;
-		}
-
-		$http_code = (int) \wp_remote_retrieve_response_code($response);
-		$raw_body = (string) \wp_remote_retrieve_body($response);
-
-		$data = \json_decode($raw_body, true);
-		if (!\is_array($data)) {
-			$snippet = \substr(\trim($raw_body), 0, 300);
-			$this->error = '获取相册列表失败：响应解析失败（HTTP ' . $http_code . '）' . ($snippet !== '' ? '；响应片段：' . $snippet : '');
-			return false;
-		}
-
-		if ($http_code !== 200) {
-			$msg = isset($data['message']) ? (string) $data['message'] : ('HTTP ' . $http_code);
-			$this->error = '获取相册列表失败：' . $msg;
-			return false;
-		}
-
-		if (!isset($data['status']) || $data['status'] !== 'success') {
-			$this->error = isset($data['message']) ? (string) $data['message'] : '获取相册列表失败';
-			return false;
-		}
-
-		\set_transient($cache_key, $data, 10 * \MINUTE_IN_SECONDS);
-		return $data;
+		return $res;
 	}
 
 	public function get_all_albums($q = null, $per_page = 100)
 	{
-		$options = Options::normalized();
-		$apiUrl = isset($options['lsky_pro_api_url']) ? (string) $options['lsky_pro_api_url'] : '';
-		$token = isset($options['lsky_pro_token']) ? (string) $options['lsky_pro_token'] : '';
-
-		if ($apiUrl === '' || $token === '') {
-			$this->error = '请先配置 API 地址和 Token';
+		$q = \is_string($q) ? $q : '';
+		$res = $this->client->getAllAlbums($q, (int) $per_page);
+		if ($res === false) {
+			$this->error = $this->client->getError();
 			return false;
 		}
-
-		$per_page = (int) $per_page;
-		if ($per_page <= 0) {
-			$per_page = 100;
-		}
-
-		$q = \is_string($q) ? \trim($q) : '';
-		$cache_key = 'lsky_pro_albums_all_' . \md5($apiUrl . '|' . $token . '|' . $per_page . '|' . $q);
-		$cached = \get_transient($cache_key);
-		if (\is_array($cached)) {
-			return $cached;
-		}
-
-		$first = $this->get_albums(1, $per_page, $q);
-		if ($first === false) {
-			return false;
-		}
-
-		$extract_items = static function ($resp): array {
-			if (!\is_array($resp) || !isset($resp['data']) || !\is_array($resp['data'])) {
-				return [];
-			}
-			if (isset($resp['data']['data']) && \is_array($resp['data']['data'])) {
-				return $resp['data']['data'];
-			}
-			$data = $resp['data'];
-			$is_list = \array_keys($data) === \range(0, \count($data) - 1);
-			if ($is_list) {
-				return $data;
-			}
-			if (isset($resp['data']['albums']) && \is_array($resp['data']['albums'])) {
-				return $resp['data']['albums'];
-			}
-			return [];
-		};
-
-		$extract_last_page = static function ($resp): int {
-			if (!\is_array($resp) || !isset($resp['data']) || !\is_array($resp['data'])) {
-				return 1;
-			}
-			if (isset($resp['data']['meta']['last_page'])) {
-				return (int) $resp['data']['meta']['last_page'];
-			}
-			if (isset($resp['data']['last_page'])) {
-				return (int) $resp['data']['last_page'];
-			}
-			return 1;
-		};
-
-		$albums = $extract_items($first);
-		$last_page = $extract_last_page($first);
-		if ($last_page < 1) {
-			$last_page = 1;
-		}
-
-		$max_pages = 50;
-		if ($last_page > $max_pages) {
-			$last_page = $max_pages;
-		}
-
-		for ($p = 2; $p <= $last_page; $p++) {
-			$resp = $this->get_albums($p, $per_page, $q);
-			if ($resp === false) {
-				return false;
-			}
-
-			$page_albums = $extract_items($resp);
-			if (!empty($page_albums)) {
-				$albums = \array_merge($albums, $page_albums);
-			}
-		}
-
-		if (empty($albums)) {
-			$has_data = (\is_array($first) && isset($first['data']) && \is_array($first['data']));
-			if ($has_data) {
-				$keys = \implode(',', \array_keys($first['data']));
-				$this->error = '未获取到任何相册（data keys：' . $keys . '）';
-			} else {
-				$this->error = '未获取到任何相册（返回结构异常）';
-			}
-
-			\set_transient($cache_key, $albums, 60);
-			return $albums;
-		}
-
-		\set_transient($cache_key, $albums, 10 * \MINUTE_IN_SECONDS);
-		return $albums;
+		return $res;
 	}
 
 	public function getApiUrl(): string

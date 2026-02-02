@@ -42,7 +42,10 @@
 
         $container.show();
         var $log = $container.find('.log-content');
-        $log.prepend('<p class="' + className + '">[' + time + '] ' + message + '</p>');
+        // XSS-safe: always write as text.
+        var text = '[' + time + '] ' + String(message === null || message === undefined ? '' : message);
+        var $p = $('<p/>').addClass(className).text(text);
+        $log.prepend($p);
     }
 
     function setProgress(type, data) {

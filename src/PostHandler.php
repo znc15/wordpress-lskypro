@@ -5,12 +5,11 @@ declare(strict_types=1);
 namespace LskyPro;
 
 use LskyPro\Support\Options;
+use LskyPro\Support\Logger;
+use LskyPro\Support\Queue;
 
 final class PostHandler
 {
-	private Remote $remote;
-	private string $logFile;
-
 	/**
 	 * @var array<int, bool>
 	 */
@@ -18,32 +17,20 @@ final class PostHandler
 
 	public function __construct()
 	{
-		$this->remote = new Remote();
-		$this->logFile = \rtrim((string) \LSKY_PRO_PLUGIN_DIR, '/\\') . '/logs/post-delete.log';
-
 		\add_action('save_post', [$this, 'handle_post_save'], 99999, 3);
 		// 仅在“永久删除 / 清空回收站”时删除图床图片。
 		\add_action('before_delete_post', [$this, 'handle_post_delete'], 10, 1);
+
+		// Async worker (Action Scheduler / WP-Cron)
+		\add_action('lsky_pro_process_post_images_async', [$this, 'handle_async_post_process'], 10, 1);
+
+		// Show queued/completed notices on post editor.
+		\add_action('admin_notices', [$this, 'maybeShowAsyncNotices']);
 	}
 
 	private function writeDeleteLog(string $message, array $context = []): void
 	{
-		$dir = \dirname($this->logFile);
-		if (!\is_dir($dir)) {
-			\wp_mkdir_p($dir);
-		}
-
-		$time = \date('Y-m-d H:i:s');
-		$line = '[' . $time . '] ' . $message;
-		if (!empty($context)) {
-			$json = \wp_json_encode($context, \JSON_UNESCAPED_UNICODE | \JSON_UNESCAPED_SLASHES);
-			if (\is_string($json) && $json !== '') {
-				$line .= ' ' . $json;
-			}
-		}
-		$line .= "\n";
-
-		@\file_put_contents($this->logFile, $line, FILE_APPEND | LOCK_EX);
+		Logger::info('post-delete', $message, $context);
 	}
 
 	public function handle_post_delete(int $postId): void
@@ -356,11 +343,11 @@ final class PostHandler
 							$this->writeDeleteLog('post_remove: delete_photos success', ['event' => $event, 'post_id' => $postId, 'count' => \count($idsToDelete), 'deleted_ids' => $merged]);
 						} else {
 							$this->writeDeleteLog('post_remove: delete_photos failed', ['event' => $event, 'post_id' => $postId, 'error' => (string) $uploader->getError()]);
-							\error_log('LskyPro: post_remove(' . $event . ') delete_photos failed - ' . (string) $uploader->getError());
+							Logger::error('post-delete', 'post_remove(' . $event . ') delete_photos failed - ' . (string) $uploader->getError(), ['event' => $event, 'post_id' => $postId]);
 						}
 					} catch (\Exception $e) {
 						$this->writeDeleteLog('post_remove: exception', ['event' => $event, 'post_id' => $postId, 'error' => $e->getMessage()]);
-						\error_log('LskyPro: 删除文章联动删除图床图片异常 - ' . $e->getMessage());
+						Logger::error('post-delete', '删除文章联动删除图床图片异常 - ' . $e->getMessage(), ['event' => $event, 'post_id' => $postId]);
 					}
 				}
 			}
@@ -401,7 +388,7 @@ final class PostHandler
 		}
 
 		if (isset($this->processing[$postId])) {
-			\error_log("LskyPro: 跳过正在处理中的文章 {$postId}");
+			Logger::debug('跳过正在处理中的文章', ['post_id' => $postId], 'post-handler');
 			return;
 		}
 
@@ -409,63 +396,156 @@ final class PostHandler
 
 		$postTitle = isset($post->post_title) ? (string) $post->post_title : '';
 		$postTitle = \str_replace(["\r", "\n"], ' ', $postTitle);
-		\error_log("LskyPro: 文章保存触发处理 - ID: {$postId}, 标题: {$postTitle}, 状态: {$post->post_status}");
-
-		$zibOtherDataBefore = \get_post_meta($postId, 'zib_other_data', true);
-		$hadZibOtherDataBefore = !empty($zibOtherDataBefore);
+		Logger::debug('文章保存触发处理', ['post_id' => $postId, 'post_title' => $postTitle, 'post_status' => (string) $post->post_status], 'post-handler');
 
 		$options = \get_option('lsky_pro_options');
 		if (!\is_array($options) || empty($options['process_remote_images'])) {
-			\error_log('LskyPro: 远程图片处理未启用');
+			Logger::debug('远程图片处理未启用', ['post_id' => $postId], 'post-handler');
 			unset($this->processing[$postId]);
 			return;
 		}
 
-		try {
-			$result = $this->remote->process_post_images($postId);
-			if ($result) {
-				$results = $this->remote->get_results();
-				$processed = isset($results['processed']) ? (int) $results['processed'] : 0;
-				$failed = isset($results['failed']) ? (int) $results['failed'] : 0;
-
-				\error_log("LskyPro: 文章 {$postId} 处理完成 - 成功: {$processed}, 失败: {$failed}");
-
-				if ($processed > 0) {
-					\add_action('admin_notices', static function () use ($processed): void {
-						echo '<div class="notice notice-success is-dismissible">';
-						echo '<p>LskyPro：成功处理 ' . $processed . ' 张远程图片</p>';
-						echo '</div>';
-					});
-				}
-
-				if ($failed > 0) {
-					\add_action('admin_notices', static function () use ($failed): void {
-						echo '<div class="notice notice-warning is-dismissible">';
-						echo '<p>LskyPro：' . $failed . ' 张图片处理失败</p>';
-						echo '</div>';
-					});
-				}
-			} else {
-				\error_log("LskyPro: 文章 {$postId} 处理失败 - " . (string) $this->remote->getError());
-			}
-		} catch (\Exception $e) {
-			\error_log('LskyPro: 文章处理异常 - ' . $e->getMessage());
+		$queued = Queue::enqueue('lsky_pro_process_post_images_async', [$postId], 0);
+		if ($queued && \function_exists('set_transient')) {
+			\set_transient('lsky_pro_post_async_queued_' . $postId, 1, 10 * \MINUTE_IN_SECONDS);
+			Logger::debug('文章已加入后台队列处理', ['post_id' => $postId], 'post-handler');
+			unset($this->processing[$postId]);
+			return;
 		}
 
+		// Fallback: queue unavailable -> process synchronously.
+		Logger::warning('post-handler', '后台队列不可用，回退到同步处理', ['post_id' => $postId]);
+		$this->handle_async_post_process($postId);
+
+		unset($this->processing[$postId]);
+	}
+
+	/**
+	 * 后台任务：处理文章远程图片 + 主题自定义字段图片（zib_other_data）。
+	 *
+	 * @param int $postId
+	 */
+	public function handle_async_post_process(int $postId): void
+	{
+		$postId = (int) \absint($postId);
+		if ($postId <= 0) {
+			return;
+		}
+
+		// Capture before state for safety restore (some themes may clear meta unexpectedly).
+		$zibOtherDataBefore = \get_post_meta($postId, 'zib_other_data', true);
+		$hadZibOtherDataBefore = !empty($zibOtherDataBefore);
+
+		$options = Options::normalized();
+		if (empty($options['process_remote_images'])) {
+			if (\function_exists('set_transient')) {
+				\set_transient('lsky_pro_post_async_result_' . $postId, [
+					'ok' => false,
+					'processed' => 0,
+					'failed' => 0,
+					'error' => '远程图片处理未启用',
+					'time' => \time(),
+				], 10 * \MINUTE_IN_SECONDS);
+			}
+			return;
+		}
+
+		$remote = new Remote();
+		$ok = false;
+		$error = '';
+		$processed = 0;
+		$failed = 0;
+
 		try {
-			$this->remote->process_zib_other_data($postId);
+			$ok = (bool) $remote->process_post_images($postId);
+			$results = $remote->get_results();
+			$processed = isset($results['processed']) ? (int) $results['processed'] : 0;
+			$failed = isset($results['failed']) ? (int) $results['failed'] : 0;
+			if (!$ok) {
+				$error = (string) $remote->getError();
+			}
 		} catch (\Exception $e) {
-			\error_log('LskyPro: zib_other_data 处理异常 - ' . $e->getMessage());
+			$ok = false;
+			$error = $e->getMessage();
+		}
+
+		$zibChanged = false;
+		try {
+			$zibChanged = $remote->process_zib_other_data($postId);
+		} catch (\Exception $e) {
+			Logger::error('post-handler', 'zib_other_data 处理异常 - ' . $e->getMessage(), ['post_id' => $postId]);
 		}
 
 		if ($hadZibOtherDataBefore) {
 			$zibOtherDataAfter = \get_post_meta($postId, 'zib_other_data', true);
 			if (empty($zibOtherDataAfter)) {
 				\update_post_meta($postId, 'zib_other_data', $zibOtherDataBefore);
-				\error_log("LskyPro: 文章 {$postId} 的 zib_other_data 被意外清空，已尝试恢复");
+				Logger::warning('post-handler', '文章 zib_other_data 被意外清空，已尝试恢复', ['post_id' => $postId]);
 			}
 		}
 
-		unset($this->processing[$postId]);
+		Logger::debug('后台处理完成', ['post_id' => $postId, 'processed' => $processed, 'failed' => $failed, 'zib_changed' => $zibChanged], 'post-handler');
+
+		if (\function_exists('set_transient')) {
+			\set_transient('lsky_pro_post_async_result_' . $postId, [
+				'ok' => $ok,
+				'processed' => $processed,
+				'failed' => $failed,
+				'error' => $error,
+				'zib_changed' => $zibChanged,
+				'time' => \time(),
+			], 10 * \MINUTE_IN_SECONDS);
+			\delete_transient('lsky_pro_post_async_queued_' . $postId);
+		}
+	}
+
+	public function maybeShowAsyncNotices(): void
+	{
+		if (!\is_admin()) {
+			return;
+		}
+
+		$screen = \function_exists('get_current_screen') ? \get_current_screen() : null;
+		if (!$screen || (string) $screen->id !== 'post') {
+			return;
+		}
+
+		$postId = isset($_GET['post']) ? (int) \absint((string) $_GET['post']) : 0;
+		if ($postId <= 0) {
+			return;
+		}
+
+		$resultKey = 'lsky_pro_post_async_result_' . $postId;
+		$queuedKey = 'lsky_pro_post_async_queued_' . $postId;
+
+		$result = \function_exists('get_transient') ? \get_transient($resultKey) : false;
+		if (\is_array($result)) {
+			$ok = !empty($result['ok']);
+			$processed = isset($result['processed']) ? (int) $result['processed'] : 0;
+			$failed = isset($result['failed']) ? (int) $result['failed'] : 0;
+			$error = isset($result['error']) ? (string) $result['error'] : '';
+
+			$class = $ok ? 'notice notice-success is-dismissible' : 'notice notice-warning is-dismissible';
+			echo '<div class="' . \esc_attr($class) . '">';
+			echo '<p>LskyPro：后台处理完成，成功 ' . \esc_html((string) $processed) . ' 张，失败 ' . \esc_html((string) $failed) . ' 张' . ($error !== '' ? ('，错误：' . \esc_html($error)) : '') . '</p>';
+			echo '</div>';
+
+			if (\function_exists('delete_transient')) {
+				\delete_transient($resultKey);
+			}
+
+			return;
+		}
+
+		$queued = \function_exists('get_transient') ? \get_transient($queuedKey) : false;
+		if ($queued) {
+			echo '<div class="notice notice-info is-dismissible">';
+			echo '<p>LskyPro：已加入后台队列，正在处理远程图片…</p>';
+			echo '</div>';
+
+			if (\function_exists('delete_transient')) {
+				\delete_transient($queuedKey);
+			}
+		}
 	}
 }
