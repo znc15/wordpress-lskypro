@@ -151,11 +151,17 @@ final class Admin
                 break;
 
             case 'lsky-pro-config':
-                \wp_enqueue_script('lsky-pro-admin-base', \plugins_url('assets/js/admin/base.js', LSKY_PRO_PLUGIN_FILE), $baseDeps, null, true);
+                $baseJsPath = \trailingslashit(LSKY_PRO_PLUGIN_DIR) . 'assets/js/admin/base.js';
+                $rulesJsPath = \trailingslashit(LSKY_PRO_PLUGIN_DIR) . 'assets/js/admin/keyword-rules.js';
+                $baseJsVer = \file_exists($baseJsPath) ? (string) \filemtime($baseJsPath) : null;
+                $rulesJsVer = \file_exists($rulesJsPath) ? (string) \filemtime($rulesJsPath) : '1.0.0';
+
+                \wp_enqueue_script('lsky-pro-admin-base', \plugins_url('assets/js/admin/base.js', LSKY_PRO_PLUGIN_FILE), $baseDeps, $baseJsVer, true);
                 \wp_localize_script('lsky-pro-admin-base', 'lskyProData', [
                     'nonce' => \wp_create_nonce('lsky_pro_ajax'),
                     'ajaxurl' => \admin_url('admin-ajax.php'),
                 ]);
+                \wp_enqueue_script('lsky-pro-admin-keyword-rules', \plugins_url('assets/js/admin/keyword-rules.js', LSKY_PRO_PLUGIN_FILE), ['lsky-pro-admin-base'], $rulesJsVer, true);
                 break;
         }
     }

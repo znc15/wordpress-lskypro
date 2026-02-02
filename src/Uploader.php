@@ -218,7 +218,7 @@ class Uploader
 	}
 
 	/**
-	 * @return array{storage_id:int,album_id:int}
+	 * @return array{storage_id:int,album_id:int,matched:bool}
 	 */
 	protected function applyKeywordRules(string $basename, int $storageId, int $albumId): array
 	{
@@ -227,6 +227,7 @@ class Uploader
 			return [
 				'storage_id' => $storageId,
 				'album_id' => $albumId,
+				'matched' => false,
 			];
 		}
 
@@ -268,6 +269,7 @@ class Uploader
 				return [
 					'storage_id' => $storageId,
 					'album_id' => $albumId,
+					'matched' => true,
 				];
 			}
 		}
@@ -275,6 +277,7 @@ class Uploader
 		return [
 			'storage_id' => $storageId,
 			'album_id' => $albumId,
+			'matched' => false,
 		];
 	}
 
@@ -306,6 +309,7 @@ class Uploader
 		$ruleResult = $this->applyKeywordRules($basename, (int) $storage_id, (int) $album_id);
 		$storage_id = $ruleResult['storage_id'];
 		$album_id = $ruleResult['album_id'];
+		$ruleMatched = $ruleResult['matched'];
 
 		$storages = $this->get_strategies();
 		if (\is_array($storages) && !empty($storages)) {
@@ -327,6 +331,8 @@ class Uploader
 		if ($storage_id <= 0) {
 			$storage_id = 1;
 		}
+
+		$this->logRouting($basename, $ruleMatched, (int) $storage_id, (int) $album_id, $this->upload_log_context);
 
 		$image_info = $this->checkImageFile($file_path);
 		if ($image_info === false) {

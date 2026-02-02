@@ -97,6 +97,29 @@ trait LoggingTrait
         }
     }
 
+    private function logRouting($filename, $matched, $storage_id, $album_id)
+    {
+        $log_file = $this->log_dir . '/upload.log';
+        $context_suffix = '';
+        if (\func_num_args() >= 5) {
+            $context_suffix = $this->formatUploadLogContext(\func_get_arg(4));
+        }
+
+        $log_message = \sprintf(
+            "[%s] 路由：%s | 匹配:%s | storage_id:%d | album_id:%d%s\n",
+            \date('Y-m-d H:i:s'),
+            \basename((string) $filename),
+            $matched ? '是' : '否',
+            (int) $storage_id,
+            (int) $album_id,
+            $context_suffix
+        );
+
+        if (\file_put_contents($log_file, $log_message, \FILE_APPEND | \LOCK_EX) === false) {
+            \error_log('写入路由日志失败');
+        }
+    }
+
     private function formatUploadLogContext($context)
     {
         if (!\is_array($context) || empty($context)) {
