@@ -593,13 +593,13 @@ final class Settings
                         <?php foreach ($rows as $i => $row): ?>
                             <tr class="lsky-keyword-rule-row">
                                 <td>
-                                    <textarea class="large-text" rows="2" name="lsky_pro_options[keyword_routing_rules][<?php echo \esc_attr((string) $i); ?>][keywords]"><?php echo \esc_textarea($row['keywords']); ?></textarea>
+                                    <textarea class="lsky-textarea large-text" rows="2" name="lsky_pro_options[keyword_routing_rules][<?php echo \esc_attr((string) $i); ?>][keywords]"><?php echo \esc_textarea($row['keywords']); ?></textarea>
                                 </td>
                                 <td>
-                                    <input class="lsky-input-small" type="number" min="1" name="lsky_pro_options[keyword_routing_rules][<?php echo \esc_attr((string) $i); ?>][storage_id]" value="<?php echo \esc_attr($row['storage_id']); ?>">
+                                    <input class="lsky-input-small lsky-input" type="number" min="1" name="lsky_pro_options[keyword_routing_rules][<?php echo \esc_attr((string) $i); ?>][storage_id]" value="<?php echo \esc_attr($row['storage_id']); ?>">
                                 </td>
                                 <td>
-                                    <input class="lsky-input-small" type="number" min="0" name="lsky_pro_options[keyword_routing_rules][<?php echo \esc_attr((string) $i); ?>][album_id]" value="<?php echo \esc_attr($row['album_id']); ?>">
+                                    <input class="lsky-input-small lsky-input" type="number" min="0" name="lsky_pro_options[keyword_routing_rules][<?php echo \esc_attr((string) $i); ?>][album_id]" value="<?php echo \esc_attr($row['album_id']); ?>">
                                 </td>
                                 <td class="lsky-rule-actions">
                                     <button type="button" class="button lsky-rule-remove">删除</button>
@@ -615,13 +615,13 @@ final class Settings
             <script type="text/html" class="lsky-rule-template">
                 <tr class="lsky-keyword-rule-row">
                     <td>
-                        <textarea class="large-text" rows="2" name="lsky_pro_options[keyword_routing_rules][__INDEX__][keywords]"></textarea>
+                        <textarea class="lsky-textarea large-text" rows="2" name="lsky_pro_options[keyword_routing_rules][__INDEX__][keywords]"></textarea>
                     </td>
                     <td>
-                        <input class="lsky-input-small" type="number" min="1" name="lsky_pro_options[keyword_routing_rules][__INDEX__][storage_id]" value="">
+                        <input class="lsky-input-small lsky-input" type="number" min="1" name="lsky_pro_options[keyword_routing_rules][__INDEX__][storage_id]" value="">
                     </td>
                     <td>
-                        <input class="lsky-input-small" type="number" min="0" name="lsky_pro_options[keyword_routing_rules][__INDEX__][album_id]" value="0">
+                        <input class="lsky-input-small lsky-input" type="number" min="0" name="lsky_pro_options[keyword_routing_rules][__INDEX__][album_id]" value="0">
                     </td>
                     <td class="lsky-rule-actions">
                         <button type="button" class="button lsky-rule-remove">删除</button>
@@ -638,15 +638,17 @@ final class Settings
         $options = Options::normalized();
         $checked = isset($options['delete_remote_images_on_post_delete']) && (int) $options['delete_remote_images_on_post_delete'] === 1;
         ?>
-        <label>
+        <label class="lsky-toggle-wrapper">
             <input
                 type="checkbox"
+                class="lsky-toggle-input"
                 name="lsky_pro_options[delete_remote_images_on_post_delete]"
                 value="1"
                 <?php \checked($checked); ?>
                 onclick="if (this.checked) { return confirm('确定要开启“删除文章时删除图床图片”吗？\\n\\n注意：若同一图床图片被多个文章复用，开启后可能误删。'); } return true;"
             >
-            文章被永久删除时（清空回收站/彻底删除），同时删除该文章关联的图床图片
+            <span class="lsky-toggle-track"></span>
+            <span class="lsky-toggle-label">文章被永久删除时（清空回收站/彻底删除），同时删除该文章关联的图床图片</span>
         </label>
         <p class="description">包含：插件处理外链/本站媒体图片时上传到图床并记录的 photo_id；文章内容里引用到的媒体库附件（若附件已写入 <code>_lsky_pro_photo_id</code>）。注意：若同一附件/图床图在多个文章复用，开启后会一起删。</p>
         <?php
@@ -657,15 +659,17 @@ final class Settings
         $options = Options::normalized();
         $checked = isset($options['delete_wp_attachments_on_post_delete']) && (int) $options['delete_wp_attachments_on_post_delete'] === 1;
         ?>
-        <label>
+        <label class="lsky-toggle-wrapper">
             <input
                 type="checkbox"
+                class="lsky-toggle-input"
                 name="lsky_pro_options[delete_wp_attachments_on_post_delete]"
                 value="1"
                 <?php \checked($checked); ?>
                 onclick="if (this.checked) { return confirm('危险操作：确定要开启“删除文章时删除媒体库附件”吗？\\n\\n提示：如果附件被多个文章复用，开启后会导致其他文章也失去该媒体。'); } return true;"
             >
-            文章被永久删除时，同时删除该文章关联/引用到的媒体库附件（wp_delete_attachment）
+            <span class="lsky-toggle-track"></span>
+            <span class="lsky-toggle-label">文章被永久删除时，同时删除该文章关联/引用到的媒体库附件（wp_delete_attachment）</span>
         </label>
         <p class="description">危险操作：如果同一附件被多个文章复用，开启后会导致其他文章也失去该媒体。建议仅在你确认站点图片不复用或可接受的情况下开启。</p>
         <?php
@@ -676,9 +680,10 @@ final class Settings
         $options = Options::normalized();
         $checked = isset($options['delete_local_files_after_upload']) && (int) $options['delete_local_files_after_upload'] === 1;
         ?>
-        <label>
-            <input type="checkbox" name="lsky_pro_options[delete_local_files_after_upload]" value="1" <?php \checked($checked); ?>>
-            图片成功上传到图床并写入附件信息后，删除本地 uploads 原图与缩略图
+        <label class="lsky-toggle-wrapper">
+            <input type="checkbox" class="lsky-toggle-input" name="lsky_pro_options[delete_local_files_after_upload]" value="1" <?php \checked($checked); ?>>
+            <span class="lsky-toggle-track"></span>
+            <span class="lsky-toggle-label">图片成功上传到图床并写入附件信息后，删除本地 uploads 原图与缩略图</span>
         </label>
         <p class="description">谨慎开启：开启后媒体库中将不再保留本地文件，仅保留图床 URL（通过 <code>wp_get_attachment_url</code> 返回）。某些依赖本地文件的功能（如裁剪/重新生成缩略图/离线备份）可能不可用。</p>
         <?php
@@ -689,9 +694,10 @@ final class Settings
         $options = Options::normalized();
         $checked = isset($options['disable_wp_image_sizes']) && (int) $options['disable_wp_image_sizes'] === 1;
         ?>
-        <label>
-            <input type="checkbox" name="lsky_pro_options[disable_wp_image_sizes]" value="1" <?php \checked($checked); ?>>
-            禁用 WordPress 默认缩略图/中间尺寸生成（thumbnail/medium/large 等）
+        <label class="lsky-toggle-wrapper">
+            <input type="checkbox" class="lsky-toggle-input" name="lsky_pro_options[disable_wp_image_sizes]" value="1" <?php \checked($checked); ?>>
+            <span class="lsky-toggle-track"></span>
+            <span class="lsky-toggle-label">禁用 WordPress 默认缩略图/中间尺寸生成（thumbnail/medium/large 等）</span>
         </label>
         <p class="description">说明：该选项不会修改全站“媒体设置”里的尺寸选项，仅在运行时通过 filter 禁用默认尺寸生成。</p>
         <p class="description" style="color: #d63638;">谨慎开启：部分主题/插件可能依赖缩略图/中间尺寸与 srcset，禁用后可能影响显示或响应式图片效果。</p>
@@ -707,17 +713,20 @@ final class Settings
             return;
         }
 
+        echo '<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px;">';
         foreach ($roleNames as $key => $label) {
             $key = \sanitize_key((string) $key);
             if ($key === '') {
                 continue;
             }
             $isChecked = \in_array($key, $selected, true);
-            echo '<label style="display:inline-block;margin-right:16px;">';
-            echo '<input type="checkbox" name="lsky_pro_options[' . \esc_attr($name) . '][]" value="' . \esc_attr($key) . '" ' . \checked($isChecked, true, false) . '>';
-            echo ' ' . \esc_html((string) $label) . ' <code>(' . \esc_html($key) . ')</code>';
+            echo '<label class="lsky-toggle-wrapper" style="margin-bottom: 0;">';
+            echo '<input type="checkbox" class="lsky-toggle-input" name="lsky_pro_options[' . \esc_attr($name) . '][]" value="' . \esc_attr($key) . '" ' . \checked($isChecked, true, false) . '>';
+            echo '<span class="lsky-toggle-track"></span>';
+            echo '<span class="lsky-toggle-label">' . \esc_html((string) $label) . ' <code>(' . \esc_html($key) . ')</code></span>';
             echo '</label>';
         }
+        echo '</div>';
     }
 
     public function admin_role_group_callback(): void
@@ -762,15 +771,17 @@ final class Settings
         $options = Options::normalized();
         ?>
         <div class="lsky-form-group">
-            <label class="lsky-checkbox">
+            <label class="lsky-toggle-wrapper">
                 <input
                     type='checkbox'
+                    class="lsky-toggle-input"
                     id="lsky_pro_process_remote_images"
                     name='lsky_pro_options[process_remote_images]'
                     value="1"
                     <?php \checked(isset($options['process_remote_images']) && (int) $options['process_remote_images'] === 1); ?>
                 >
-                <span>自动处理文章中的远程图片</span>
+                <span class="lsky-toggle-track"></span>
+                <span class="lsky-toggle-label">自动处理文章中的远程图片</span>
             </label>
             <p class="description">保存文章时，自动将远程图片上传到图床</p>
         </div>
@@ -782,15 +793,17 @@ final class Settings
         $options = Options::normalized();
         ?>
         <div class="lsky-form-group">
-            <label class="lsky-checkbox">
+            <label class="lsky-toggle-wrapper">
                 <input
                     type='checkbox'
+                    class="lsky-toggle-input"
                     id="lsky_pro_exclude_site_icon"
                     name='lsky_pro_options[exclude_site_icon]'
                     value="1"
                     <?php \checked(isset($options['exclude_site_icon']) && (int) $options['exclude_site_icon'] === 1); ?>
                 >
-                <span>站点图标不上传图床，保持本地文件</span>
+                <span class="lsky-toggle-track"></span>
+                <span class="lsky-toggle-label">站点图标不上传图床，保持本地文件</span>
             </label>
             <p class="description" style="color: #d63638;">建议开启：站点图标上传/裁剪流程通常依赖本地文件，上传图床并删除本地文件可能导致异常</p>
         </div>

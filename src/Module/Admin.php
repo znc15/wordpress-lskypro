@@ -86,7 +86,10 @@ final class Admin
         }
 
         $bootstrapHandle = $this->enqueue_bootstrap();
-        \wp_enqueue_style('lsky-pro-admin', \plugins_url('assets/css/admin-style.css', LSKY_PRO_PLUGIN_FILE));
+        
+        $cssPath = \trailingslashit(LSKY_PRO_PLUGIN_DIR) . 'assets/css/admin-style.css';
+        $cssVer = \file_exists($cssPath) ? (string) \filemtime($cssPath) : '1.0.0';
+        \wp_enqueue_style('lsky-pro-admin', \plugins_url('assets/css/admin-style.css', LSKY_PRO_PLUGIN_FILE), [], $cssVer);
 
         $baseDeps = ['jquery', $bootstrapHandle];
 
